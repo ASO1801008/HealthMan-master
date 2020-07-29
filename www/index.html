@@ -28,7 +28,78 @@
     var Schedule = ncmb.DataStore("schedule");
     var Weight = ncmb.DataStore("weight");
     
-
+    function onLoadFunc2(dater){
+        var currentUser = ncmb.User.getCurrentUser();
+        if(currentUser) {
+        //一旦カードをすべて消去する
+          var maincont = document.getElementById('detaildiv');
+          
+          if (maincont.hasChildNodes()){
+            for (var i=maincont.childNodes.length-1; i>=0; i--) {
+              maincont.removeChild(maincont.childNodes[i]);
+            }
+          }
+          //【ユーザー絞る】
+          Schedule.equalTo("user_id",currentUser.get("objectId"))
+                  .equalTo("date",dater)
+                  .fetchAll()
+                  .then(function(results){
+              for(var i = 0; i < results.length; i++){
+                //カード作成
+                var onscard = document.createElement('ons-card');
+                //pタグ作成
+                var cardp = document.createElement('p');
+                //取得データをpタグに入れる
+                cardp.innerHTML = results[i].detail; // <- あとで編集
+                //カードの中にpタグを入れる
+                onscard.appendChild(cardp);
+                //ボタンを作成
+                var cardbutton = document.createElement('ons-button');
+                //ボタンの設定
+                cardbutton.setAttribute("style","width:45%; text-align:center; margin-right:15px;background-color:#ffff00;color:#000000; border-radius:10px;");
+                //ボタンの文字
+                cardbutton.innerHTML = "変更";
+                //ボタンを作成
+                var cardbuttonb = document.createElement('ons-button');
+                //ボタンの文字
+                cardbuttonb.innerHTML = "削除";
+                //ボタンの設定
+                cardbuttonb.setAttribute("style","width:45%; text-align:center; margin-left:15px; background-color:#ffff00;color:#000000;border-radius:10px;");
+                //ボタンを押した時の処理
+                cardbutton.onclick = (function(objId){
+                  
+                })
+                cardbuttonb.onclick = (function(objId){
+                  return function() {
+                    btnDelete(objId);
+                  }
+                })(results[i].objectId);
+               //カードの中にボタンを入れる
+                onscard.appendChild(cardbutton);
+                //カードの中にボタンを入れる
+                onscard.appendChild(cardbuttonb);
+                //divの中にカードを入れる
+                 maincont.appendChild(onscard);
+                
+              }
+            });
+            //削除ボタンを押したときの処理
+            function btnDelete(objId){
+              Schedule.equalTo("objectId",objId)
+                      .fetch()
+                      //成功時報酬
+                      .then(function(result){
+                        result.delete();
+                        onLoadFunc2(dater);
+                      })
+                      //削除失敗時の処理
+                      .catch(function(error){
+                        alert("削除失敗");
+                      });
+            }
+        }   
+      }
+    
     document.addEventListener('init',function(event) {
       var page = event.target;
       
@@ -175,24 +246,30 @@
         y = dateObj.getFullYear();
         m = dateObj.getMonth() + 1;
         d = dateObj.getDate();
-        tmpday = new Array("","","","","","","");
+        var glbl_day = new Array("","","","","","","");
         for(w=0; w<5; w++){
-          tmpday[w] = new Array("","","","","","","","","");
+          glbl_day[w] = new Array("","","","","","","","","");
         }
         document.getElementById("currentDate").innerHTML = y+"年"+m+"月";
         showCalendar(new Date(y,m-1,1));
-        //for(i=0; i<SHOWWEEK; i++){
-        //  for(j=0; j<7; j++){
-        //    page.querySelector("#detail-buttona" + i + "b" + j).onclick = function () {
-        //      var ti;
-        //      var tj;
-        //      ti = i;
-        //      tj = j;
-              //document.querySelector('#navigator').pushPage('scheduledetail.html');////{data:{y:tbl2[i][j]}});
-        //      document.getElementById("currentDate").innerHTML = y + "年" + m + "月" + tmpday[ti][tj] + "日";
-        //   }
-        // }
-        //}
+
+        for(i=0; i<SHOWWEEK; i++){
+         for(j=0; j<7; j++){
+            // masatokg
+            page.querySelector("#detail-buttona" + i + "b" + j).onclick =  function (event) { 
+                
+                // 選択した行列番号をid文字列から取得
+                mdarray = event.target.id.toString().replace('detail-buttona','').split('b');
+                cal_row = Number(mdarray[0]);
+                cal_col = Number(mdarray[1]);
+                // 選択した日付のオブジェクト
+                calDate = glbl_day[cal_row][cal_col];
+                // innerHTML(currentDate)に選択した日付を表示
+                document.getElementById("currentDate").innerHTML = y + "年" + (calDate.getMonth()+1) + "月" + calDate.getDate() + "日 ";
+                document.querySelector('#navigator').pushPage('scheduledetail.html',{data:{date:calDate}});//// データを引き渡すならオプションの第２引数を使う
+              };
+          }
+        }
 
         page.querySelector("#back-button").onclick = function () {
           if(m <=1){
@@ -203,7 +280,24 @@
           }
           document.getElementById("currentDate").innerHTML = y+"年"+m+"月";
           showCalendar(new Date(y,m-1,1));
-        }
+          for(i=0; i<SHOWWEEK; i++){
+            for(j=0; j<7; j++){
+                // masatokg
+                page.querySelector("#detail-buttona" + i + "b" + j).onclick =  function (event) { 
+                    
+                    // 選択した行列番号をid文字列から取得
+                    mdarray = event.target.id.toString().replace('detail-buttona','').split('b');
+                    cal_row = Number(mdarray[0]);
+                    cal_col = Number(mdarray[1]);
+                    // 選択した日付のオブジェクト
+                    calDate = glbl_day[cal_row][cal_col];
+                    // innerHTML(currentDate)に選択した日付を表示
+                    document.getElementById("currentDate").innerHTML = y + "年" + (calDate.getMonth()+1) + "月" + calDate.getDate() + "日 ";
+                    document.querySelector('#navigator').pushPage('scheduledetail.html',{data:{date:calDate}});//// データを引き渡すならオプションの第２引数を使う
+                  };
+            }
+          }
+          }
         
         page.querySelector("#next-button").onclick = function () {
           if(m >= 12){
@@ -214,6 +308,23 @@
           }
           document.getElementById("currentDate").innerHTML = y+"年"+m+"月";
           showCalendar(new Date(y,m-1,1));
+          for(i=0; i<SHOWWEEK; i++){
+         for(j=0; j<7; j++){
+            // masatokg
+            page.querySelector("#detail-buttona" + i + "b" + j).onclick =  function (event) {
+                
+                // 選択した行列番号をid文字列から取得
+                mdarray = event.target.id.toString().replace('detail-buttona','').split('b');
+                cal_row = Number(mdarray[0]);
+                cal_col = Number(mdarray[1]);
+                // 選択した日付のオブジェクト
+                calDate = glbl_day[cal_row][cal_col];
+                // innerHTML(currentDate)に選択した日付を表示
+                document.getElementById("currentDate").innerHTML = y + "年" + (calDate.getMonth()+1) + "月" + calDate.getDate() + "日 ";
+                document.querySelector('#navigator').pushPage('scheduledetail.html',{data:{date:calDate}});//// データを引き渡すならオプションの第２引数を使う
+              };
+          }
+        }
         }
           
         /*** スケジュール登録 notice ***
@@ -235,7 +346,7 @@
             newSchedule( 2009,  3,  6, "", "飲み会<br>" );
             newSchedule( 2009,  3,  8, "", "<div align='center' style='background-color:#ff99cc;'><font color='#660000'>映画<\/font><\/div>" );
             newSchedule( 2009,  3, 24, "", "<span style='background-color:#00ffff; color:blue'>卒業式<\/span><br>" );
-            newSchedule( 2009,  3, calDate(2009, 3, 3, 0), "", "<font color='green'>掃除当番<\/font>" ); //4月第3日曜日
+            //newSchedule( 2009,  3, calDate(2009, 3, 3, 0), "", "<font color='green'>掃除当番<\/font>" ); //4月第3日曜日
             newSchedule( 2009,  3, 16, "bgcolor='#ff6699' style='color:white'", "ちーちゃん誕生日<br>" );
           }
 
@@ -341,7 +452,7 @@
             //argDateの週の日曜日から表示する
             tmpDate = moveDate( argDate, -argDate.getDay() );
             //"今日"を記憶
-            toDate = new Date();
+            cal_toDayDate = new Date();
             //スケジュールを登録
             setSchedules();
             //描画用コード開始
@@ -363,7 +474,8 @@
               for(j=0; j<7; j++){
                 docubuf += "<td width='" + WIDTH + "' ";
                 
-                tmpday[i][j] = tmpDate.getDate();
+                // masatokg
+                glbl_day[i][j] = tmpDate; // カレンダーの各行・列セルに対応した日付オブジェクトを格納
                 
                 //セル色は最後に登録したの優先．
                 for(k=si-1; k>=0; k--)
@@ -373,10 +485,12 @@
                       sdlSel[k] != ""
                     )
                     break;
+                cal_Today = cal_toDayDate.getDate();
+                cal_Month = cal_toDayDate.getMonth();
                 
                 //セル色設定
-                if( tmpDate.getDate()  == toDate.getDate()  &&
-                    tmpDate.getMonth() == toDate.getMonth() )
+                if( tmpDate.getDate()  == cal_toDayDate.getDate()  &&
+                    tmpDate.getMonth() == cal_toDayDate.getMonth() )
                                   docubuf += TODAY     + ">";
                                   //別に１年前の今日に色付けてもいいか
                 else if( k >= 0 ) docubuf += sdlSel[k] + ">";
@@ -385,9 +499,9 @@
                 else              docubuf += USUALDAY  + ">";
                 
                 //日付表示
-                //docubuf += "<ons-button id='detail-buttona" + i + "b" + j + "' modifier='quiet'>";
+                docubuf += "<ons-button id='detail-buttona" + i + "b" + j + "' modifier='quiet'>";
                 // docubuf += "<ons-back-button>  BACK </ons-back-button>"
-                docubuf += "<ons-button ng-click=\"app.navi.pushPage('scheduledetail.html')\" modifier='quiet' >"
+                //docubuf += "<ons-button ng-click=\"app.navi.pushPage('scheduledetail.html')\" modifier='quiet' >"
                 //年初めは年から表示
                 if( tmpDate.getDate()==1 && tmpDate.getMonth()==0 )
                   docubuf += tmpDate.getFullYear() + "/";
@@ -426,25 +540,47 @@
       }else if(page.matches('#scheduledetail-page')){
         var currentUser = ncmb.User.getCurrentUser();
         if (currentUser) {
+        var len;
         page.querySelector("ons-back-button").onclick = function () {
             document.querySelector('#navigator').popPage;
           };
-        page.querySelector("#new-button").onclick = function() {
-          document.querySelector('#navigator').pushPage('scheduleregister.html');
+        page.querySelector("#newschedule-button").onclick = function() {
+          document.querySelector('#navigator').pushPage('scheduleregister.html',{data:{date:page.data.date}});
         };
-        
-        
-        document.getElementById("currentDate2").innerHTML = "年"+tmpm+"月"+tmpd+"日";
-
+              
+        currentDate2.innerHTML = page.data.date.getFullYear() + "年" + (page.data.date.getMonth()+1) + "月" + page.data.date.getDate() + "日 ";
+        onLoadFunc2(page.data.date);
         }
       //スケジュール登録ページの処理
-      }else if(page.matches('scheduleregister-page')){
+      }else if(page.matches('#scheduleregister-page')){
         var currentUser = ncmb.User.getCurrentUser();
         if (currentUser) {
-        page.querySelector("ons-back-button").onclick = function () {
-            document.querySelector('#navigator').popPage;
+          var callDate = page.data.date;
+          var date = new Date(callDate.getFullYear(),callDate.getMonth(), callDate.getDate());
+          
+          page.querySelector("ons-back-button").onclick = function () {
+              document.querySelector('#navigator').popPage();
           };
-        }
+          currentDate3.innerHTML = date.getFullYear() + "年" + (date.getMonth()+1) + "月" + date.getDate() + "日 ";
+          page.querySelector("#newschedule-button").onclick = function() {
+              var schedule = new Schedule;
+              
+              //スケジュール登録
+              schedule.set("detail", document.getElementById("target").value)
+                      .set("user_id",currentUser.get("objectId"))
+                      .set("date",date)
+                      .save()
+                      .then(function(object)
+                      {
+                        onLoadFunc2(callDate);
+                      })
+                      .catch(function(error)
+                      {alert("保存失敗:"+JSON.stringify(error));
+                      });
+              
+              document.querySelector("#navigator").popPage();
+          };
+      }
       //アルバムページの処理
       }else if(page.matches('#album-page')){
          page.querySelector("ons-back-button").onclick = function () {
@@ -560,7 +696,7 @@
         }
       };
     });
-
+    
     if (ons.platform.isIPhoneX()) {
       document.documentElement.setAttribute('onsflag-iphonex-portrait', '');
       document.documentElement.setAttribute('onsflag-iphonex-landscape', '');
@@ -760,7 +896,7 @@
     </ons-page>
   </ons-template>
 
- <!-- 目標登録画面 -->
+  <!-- 目標登録画面 -->
   <ons-template id="newgoal.html">
     <ons-page id="newgoal-page">
       <ons-toolbar>
@@ -791,7 +927,6 @@
           <h1> <span id="currentDate"></span></h1>
         </div>
         <div id="divSdlCal"></div>
-        <ons-button ng-click="#navigator.pushPage('Scheduledetail.html')">TEST</ons-button>
         <div style="text-align: center; position:absolute;bottom:20px;width:100%;"> 
           <ons-button id="back-button" style="background-color:silver;color:black; text-align:left">◀BACK</ons-button> 
           <ons-button id="next-button" style=" text-align:right;background-color: silver; color:black">NEXT▶</ons-button> 
@@ -805,28 +940,40 @@
       <div class="background" style="background-color: white;"></div>
       <ons-toolbar  style="background-color: yellow;">
         <div class="left"><ons-back-button></ons-back-button></div>
-        <div class="center">スケジュール</div>
+        <div class="center">スケジュール詳細</div>
       </ons-toolbar>
       <div style="position:relative; width:100%; height:90%;">
         <div class ="month" style="text-align: center;">
           <h1> <span id="currentDate2"></span></h1>
         </div>
+        <div id ="detaildiv"></div>
         
       </div>
-      <ons-button id="new-button" style="text-align:center; position: fixed; left:60px; right:60px ;bottom:10px; background-color:#ffff00; color:#000000; border-width:1px; border-radius:10px;">追加</ons-button>
+      <ons-button id="newschedule-button" style="text-align:center; position: fixed; left:60px; right:60px ;bottom:100px; background-color:#ffff00; color:#000000; border-width:1px; border-radius:10px;">追加</ons-button>
     </ons-page>
   </ons-template>
   <!--スケジュール登録画面-->
   <ons-template id="scheduleregister.html">
     <ons-page id="scheduleregister-page">
       <div class="background" style="background-color: white;"></div>
-      <ons-toolbar  style="background-color: yellow;">
+      <ons-toolbar style="background-color: yellow;">
         <div class="left"><ons-back-button></ons-back-button></div>
-        <div class="center">スケジュール</div>
+        <div class="center">スケジュール追加</div>
       </ons-toolbar>
-      
+
+      <div style="position:relative; width:100%; height:90%;">
+      <div style="text-align:center; margin-top:15px;">
+        <h1> <span id="currentDate3"></span></h1>
+      </div>
+      <div style="text-align:center; margin-top:150px;">
+      <textarea id="target" class="textarea" rows="1" placeholder="トレーニング内容" style="height:50px; width:250px;"></textarea>
+      </div>
+
+      <ons-button id="newschedule-button" style="text-align:center; position: fixed; left:60px; right:60px ;bottom:100px; background-color:#ffff00; color:#000000; border-width:1px;">登録</ons-button>
+      </div>
     </ons-page>
   </ons-template>
+
   <!---アルバム画面-->
   <ons-template id="album.html">
     <ons-page id="album-page">
