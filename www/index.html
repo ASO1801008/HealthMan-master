@@ -143,7 +143,7 @@
 
       //目標ページの処理
       }else if(page.matches('#goal-page')){
-        var currentUser = ncmb.User.getCurrentUser();
+           var currentUser = ncmb.User.getCurrentUser();
         if (currentUser) {
           page.querySelector("ons-back-button").onclick = function () {
               document.querySelector('#navigator').pushPage('signin.html');
@@ -151,67 +151,31 @@
           page.querySelector("#newgoal-button").onclick = function () {
             document.querySelector('#navigator').pushPage('newgoal.html');
           };
-
-          //一旦カードをすべて消去する
-          var maincont = document.getElementById('goaldiv');
-          if (maincont.hasChildNodes()){
-            for (var i=maincont.childNodes.length-1; i>=0; i--) {
-              maincont.removeChild(maincont.childNodes[i]);
-            }
-          }
-          //flagがfalseのデータを全件取得
-          //【ユーザー絞る】
-          Goal.equalTo("flag", false)
-              .equalTo("user_id",currentUser.get("objectId"))
-              .fetchAll()
-            .then(function(results){
-              //取得データがある間
-              for(var i = 0; i < results.length; i++){
-                //カード作成
-                var onscard = document.createElement('ons-card');
-                //pタグ作成
-                var cardp = document.createElement('p');
-                //取得データをpタグに入れる
-                cardp.innerHTML = results[i].goal + results[i].flag; // <- あとで編集
-                //カードの中にpタグを入れる
-                onscard.appendChild(cardp);
-                //ボタンを作成
-                var cardbutton = document.createElement('ons-button');
-                //ボタンの設定
-                cardbutton.setAttribute("modifier","large");
-                //ボタンの文字
-                cardbutton.innerHTML = "完了";
-                //ボタンを押した時の処理
-                cardbutton.onclick = (function(objid){})(results[i].objectId);
-                //カードの中にボタンを入れる
-                onscard.appendChild(cardbutton);
-                //divの中にカードを入れる
-                maincont.appendChild(onscard);
-              }
-            })
-            .catch(function(error){
-              alert("エラーです");
-            });
+          onLoadFunc();
         }
       
+      
       //登録画面の処理
-      } else if (page.matches('#newgoal-page')) {
+      }else if(page.matches('#newgoal-page')) {
         var currentUser = ncmb.User.getCurrentUser();
         if (currentUser) {
           page.querySelector("ons-back-button").onclick = function () {
               document.querySelector('#navigator').popPage();
           };
   
-        page.querySelector("#new-button").onclick = function() {
-            var goal = new Goal;
-            //目標登録
-            goal.set("goal", document.getElementById("target").value)
-                  .set("user_id",currentUser.get("objectId"))
-                  .set("flag",false)
-                  .save();
-            document.querySelector("#navigator").popPage();
-        };
-      }
+          page.querySelector("#new-button").onclick = function() {
+              var goal = new Goal;
+              //目標登録
+              goal.set("goal", document.getElementById("target").value)
+                    .set("user_id",currentUser.get("objectId"))
+                    .set("flag",false)
+                    .save()
+              .then(function(object){
+                onLoadFunc(); //onLoadFuncを呼び出し
+              });
+              document.querySelector("#navigator").popPage();
+          };
+        }
       
       //スケジュールページの処理
       } else if (page.matches('#schedule-page')){
@@ -580,126 +544,256 @@
               
               document.querySelector("#navigator").popPage();
           };
-      }
+        }
       //アルバムページの処理
       }else if(page.matches('#album-page')){
          page.querySelector("ons-back-button").onclick = function () {
             document.querySelector('#navigator').pushPage('signin.html');
         };
-        
-      
       //ボディチェックページの処理
       }else if(page.matches('#weight-page')){
-        var currentUser = ncmb.User.getCurrentUser();
-        var Profile = ncmb.DataStore("profile");
         var Weight = ncmb.DataStore("weight");
+        var currentUser = ncmb.User.getCurrentUser();
         var weight = new Weight;
         var date = new Date();
-        var h = 0;
-        var select_weight;
         if (currentUser) { 
           //ログアウト処理
           page.querySelector("ons-back-button").onclick = function () {
             ncmb.User.logout();
             document.querySelector('#navigator').pushPage('signin.html');
           };
- 
+
+          onWeight();
+
+          //設定ボタンを押した時の処理
+          page.querySelector("#weight-button").onclick = function() {
+            //体重の登録
+            weight.set("weight", document.getElementById("weight-inp").value)
+                .set("date",date)
+                .set("user_id",currentUser.get("objectId"))
+                .save();
+            //ページの読み込み
+            onWeight();
+          }
+        };
+      //カロリータンパク質ページの処理
+      }else if(page.matches('#nutrition-page')){
+        var currentUser = ncmb.User.getCurrentUser();
+        if (currentUser) {
+          //バックボタンを押した時の処理追加
+          page.querySelector("ons-back-button").onclick = function () {
+            document.querySelector('#navigator').pushPage('signin.html');
+          };
+          //記録ボタンを押した時の処理追加
+          page.querySelector("#nut-button").onclick = function(){
+          //今日の日付を取得追加
+          var date = new Date;
+          //データベース取得追加
+          var nutrition = new Nutrition;
+          //カロリータンパク質登録(カロリー、タンパク質、今日の日付、ログイン中のユーザ)追加
+          nutrition.set("cal", document.getElementById("cal").value)
+                  .set("protain", document.getElementById("protain").value)
+                  .set("date", date)
+                  .set("user_id", currentUser.get("objectId"))
+                  .save()
+                .catch(function(error){
+                  console.log(error);
+                });
+                //meterバーの割合数字、valueの値が割合の値になる追加
+          document.getElementById("cal-meter").value = document.getElementById("cal").value;
+          document.getElementById("pro-meter").value = document.getElementById("protain").value;
+          };
+          }
+      //プロフィールページの処理
+      }else if(page.matches('#profile-page')){
+        var currentUser = ncmb.User.getCurrentUser();
+        var Profile = ncmb.DataStore("profile");
+        var Weight = ncmb.DataStore("weight");
+        var profile = new Profile;
+        var weight = new Weight;
+        var date = new Date();
+        // ログアウト処理
+        page.querySelector("ons-back-button").onclick = function () {
+          document.querySelector('#navigator').pushPage('signin.html');
+        };
+        // 身長レンジスライダーを動かすと身長テキストボックスに入力される
+        page.querySelector("#pro-height-range").onclick = function() {
+          document.getElementById('pro-height-inp').value=this.value;
+        }
+        // 体重レンジスライダーを動かすと体重テキストボックスに入力される
+        page.querySelector("#pro-weight-range").onclick = function() {
+          document.getElementById('pro-weight-inp').value=this.value;
+        }
+        //設定ボタンを押した時の処理
+        page.querySelector("#register-button").onclick = function() {
+          //体重の登録
+          profile.set("height", document.getElementById("pro-height-inp").value)
+                .set("user_id",currentUser.get("objectId"))
+                .save();
+          weight.set("weight", document.getElementById("pro-weight-inp").value)
+                .set("date",date)
+                .set("user_id",currentUser.get("objectId"))
+                .save();
+          
+          //BMIの計算
+          var bmi = (document.getElementById("pro-weight-inp").value) / (document.getElementById("pro-height-inp").value/100) / (document.getElementById("pro-height-inp").value/100);
+          bmi = Math.round(bmi * 10) / 10;
+          //pタグに出力
+          document.getElementById("pro-bmi").textContent = bmi;
+          //ページの読み込み
+          document.querySelector("ons-tab[page='profile.html']").click();
+          //location.reload();
+        }
+      };
+    });
+    if (ons.platform.isIPhoneX()) {
+      document.documentElement.setAttribute('onsflag-iphonex-portrait', '');
+      document.documentElement.setAttribute('onsflag-iphonex-landscape', '');
+    }
+    //ボディチェック画面表示処理
+    function onWeight(){
+      var currentUser = ncmb.User.getCurrentUser();
+      var h = 0;
+      if (currentUser) { 
+        //身長取得
+        Profile.equalTo("user_id",currentUser.get("objectId")).fetchAll()
+                .then(function(results){
+                  for(var i=0; i<results.length; i++){
+                    h = results[i].get("height");
+                  }
+                })
+                .catch(function(error){
+                  console.log("データなし");
+                });
         //グラフ描画【静的データ】
         var chartdata = {
           labels: [],
           datasets: [
-              {
-                  label: "体重",
-                  backgroundColor:'rgba(0,0,0,0)',
-                  borderColor: 'rgba(75,192,192,1)',
-                  data: []
-              }]
+            {
+              label: "体重",
+              backgroundColor:'rgba(0,0,0,0)',
+              borderColor: 'rgba(75,192,192,1)',
+              data: [],
+            }]
         };
-        //データ取得
-        Weight.order("date",true)
+        //体重データ取得
+        Weight.order("date",false)
               .equalTo("user_id",currentUser.get("objectId"))
               .fetchAll()
-                .then(function(results){
-                    for (var i=0; i<results.length; i++) {
-                        chartdata.labels[i] = i;
-                        chartdata.datasets[0].data[i] = results[i].weight;
-                        select_weight = chartdata.datasets[0].data[i];
+              .then(function(results){
+                  for (var i=0; i<results.length; i++) {
+                    chartdata.labels[i] = i+1;
+                    chartdata.datasets[0].data[i] = results[i].get("weight");
+                    //日付の取得、表示
+                    var select_weight = results[i].get("weight");
+                    //BMIの計算
+                    var defbmi = select_weight / (h/100) / (h/100);
+                    defbmi = Math.round(defbmi * 10) / 10;
+                    //pタグに出力
+                    document.getElementById("bmi").textContent = defbmi;
+                  }
+                  var ctx = document.getElementById("myChart").getContext("2d");
+                  var options = { };
+                  var lineChart = new Chart(ctx,{
+                    type:'line',
+                    data:chartdata,
+                    options:{
+                          //
+                          // responsive: false,
+                      responsive:true,
+                      maintainAspectRatio: false
                     }
-                    var ctx = document.getElementById("myChart").getContext("2d");
-                    var options = { };
-                    var lineChart = new Chart(ctx,{
-                      type:'line',
-                      data:chartdata,
-                    });
-
-                })
-                .catch(function(err){
-                    console.log(err);
-                });
-          
-        
-        var dl = chartdata.datasets[0].data.length;
-        var dt= chartdata.datasets[0].data[dl -1];
-        Number(dt);
-        //pタグに出力
-        var bmi = dt / (h/100) / (h/100);
-        bmi = Math.round(bmi * 10) / 10;
-        document.getElementById("bmi").textContent = bmi;
-
-        //身長取得
-        Profile.equalTo("user_id",currentUser.get("objectId")).fetchAll()
-                  .then(function(results){
-                    for(var i=0; i<results.length; i++){
-                      h = results[i].get("height");
-                    }
-                  })
-                  .catch(function(error){
-                    console.log("データなし");
                   });
-        //設定ボタンを押した時の処理
-        page.querySelector("#weight-button").onclick = function() {
-          //体重の登録
-          weight.set("weight", document.getElementById("weight-inp").value)
-                .set("date",date)
-                .set("user_id",currentUser.get("objectId"))
-                .save();
-          //BMIの計算
-          var bmi = (document.getElementById("weight-inp").value) / (h/100) / (h/100);
-          bmi = Math.round(bmi * 10) / 10;
-          //pタグに出力
-          document.getElementById("bmi").textContent = bmi;
-          //ページの読み込み
-          document.querySelector("ons-tab[page='weight.html']").click();
-        }
-      };
-        
-      //カロリータンパク質ページの処理
-      }else if(page.matches('#nutrition-page')){
-         page.querySelector("ons-back-button").onclick = function () {
-            document.querySelector('#navigator').pushPage('signin.html');
-        };
+              })
+              .catch(function(err){
+                console.log(err);
+              });
+      }
+    }
+    //目標画面一覧用処理
+    function onLoadFunc(){
+      var currentUser = ncmb.User.getCurrentUser();
+      if (currentUser) {
+        //一旦カードをすべて消去する
+          var maincont = document.getElementById('goaldiv');
+          var subcont = document.getElementById('targetdiv');
+          if (maincont.hasChildNodes()){
+            for (var i=maincont.childNodes.length-1; i>=0; i--) {
+              maincont.removeChild(maincont.childNodes[i]);
+            }
+          }
+          if (subcont.hasChildNodes()){
+            for (var i=subcont.childNodes.length-1; i>=0; i--) {
+              subcont.removeChild(subcont.childNodes[i]);
+            }
+          }
+          //flagがfalseのデータを全件取得
+          Goal.equalTo("flag", false)
+              .equalTo("user_id",currentUser.get("objectId"))
+              .fetchAll()
+            .then(function(results){
+              //取得データがある間
+              for(var i = 0; i < results.length; i++){
+                //カード作成
+                var onscard = document.createElement('ons-card');
+                onscard.style.cssText ="background-color:yellow;"+"text-align:center;"+"width:90%;"+"margin:20px auto;";
+                //pタグ作成
+                var cardp = document.createElement('p');
+                cardp.style.cssText = "display:inline;";
+                cardp.innerHTML = results[i].goal;
+                onscard.appendChild(cardp);
+                //ボタンを作成
+                var cardbutton = document.createElement('ons-button');
+                cardbutton.setAttribute("modifier");
+                cardbutton.innerHTML = "達成";
+                cardbutton.style.cssText = "background-color:#00ff7f;"+"color:black;"+"font-size:12pt"+"display:inline;"+"margin-left:20px;";
+                //ボタンを押した時の処理
+                cardbutton.onclick = (function(objid){
+                return function(){
+                  btnUpdate(objid);
+                }
+              })(results[i].objectId);
+                onscard.appendChild(cardbutton);
+                maincont.appendChild(onscard);
+              }
+            })
+            .catch(function(error){
+              alert("エラーです");
+            });
+          //達成ボタンを押下した時の処理
+          function btnUpdate(objid){
+            Goal.equalTo("objectId",objid)
+                .fetch()
+                .then(function(results){
+                  results.set("flag",true);
+                  results.update();
+                  onLoadFunc(); //画面再読み込み
+                })
+                .catch(function(error){
+                  alert("更新エラー")
+                });
+          }
 
-      //プロフィールページの処理
-      }else if(page.matches('#profile-page')){
-        
-        // ログアウト処理
-        page.querySelector("ons-back-button").onclick = function () {
-            document.querySelector('#navigator').pushPage('signin.html');
-        };
-        // 身長レンジスライダーを動かすと身長テキストボックスに入力される
-        page.querySelector("#pro-height-range").onclick = function() {
-            document.getElementById('pro-height-inp').value=this.value
+          //flagがtrueのデータを全件取得
+          Goal.equalTo("flag", true)
+              .equalTo("user_id",currentUser.get("objectId"))
+              .fetchAll()
+            .then(function(results){
+              //取得データがある間
+              for(var i = 0; i < results.length; i++){
+                //カード作成
+                var onscard = document.createElement('ons-card');
+                onscard.style.cssText = "background-color:#00ff7f;"+"text-align:center;"+"width:90%;"+"margin:20px auto;";
+                var cardp = document.createElement('p');
+                cardp.innerHTML = results[i].goal;
+                onscard.appendChild(cardp);
+                subcont.appendChild(onscard);
+              }
+            })
+            .catch(function(error){
+              alert("エラーです");
+            });
         }
-        // 体重レンジスライダーを動かすと体重テキストボックスに入力される
-        page.querySelector("#pro-weight-range").onclick = function() {
-            document.getElementById('pro-weight-inp').value=this.value
-        }
-      };
-    });
-    
-    if (ons.platform.isIPhoneX()) {
-      document.documentElement.setAttribute('onsflag-iphonex-portrait', '');
-      document.documentElement.setAttribute('onsflag-iphonex-landscape', '');
     }
 
     //カメラ処理
@@ -884,31 +978,30 @@
   <!---目標一覧画面-->
   <ons-template id="goal.html">
     <ons-page id="goal-page">
-      <ons-toolbar>
+      <ons-toolbar style="background-color:yellow;">
         <div class="left"><ons-back-button>logout</ons-back-button></div>
         <div class="center">目標一覧</div>
       </ons-toolbar>
-      <div id="goaldiv">
-        
-      </div>
-      <ons-button id="newgoal-button" style="text-align:center; position: fixed; left:60px; right:60px ;bottom:40px; background-color:#ffff00; color:#000000; border-width:1px;">+目標を追加する</ons-button>
-
+      <div class="background" style="background-color:white"></div>
+      <div id="goaldiv"></div>
+      <div id="targetdiv"></div>
+      <ons-button id="newgoal-button" style="text-align:center; position:fixed; left:60px; right:60px ;bottom:40px; background-color:#ffff00; color:#000000; border-width:1px;">+目標を追加する</ons-button>
     </ons-page>
   </ons-template>
 
   <!-- 目標登録画面 -->
-  <ons-template id="newgoal.html">
+ <ons-template id="newgoal.html">
     <ons-page id="newgoal-page">
-      <ons-toolbar>
+      <ons-toolbar style="background-color:yellow;">
         <div class="left"><ons-back-button></ons-back-button></div>
         <div class="center">目標登録</div>
       </ons-toolbar>
-
+      <div class="background" style="background-color:white"></div>
       <div style="text-align:center; margin-top:150px;">
-      <textarea id="target" class="textarea" rows="3" placeholder="目標を入力" style="height:150px; width:250px; border:1px solid #000000;"></textarea>
+      <textarea id="target" class="textarea" rows="3" placeholder="目標を入力" style="height:150px; width:250px; border:1px solid #000000; background-color:white;"></textarea>
       </div>
 
-      <ons-button id="new-button" style="text-align:center; position: fixed; left:60px; right:60px ;bottom:100px; background-color:#ffff00; color:#000000; border-width:1px;">追加</ons-button>
+      <ons-button id="new-button" style="text-align:center; position: fixed; left:60px; right:60px ;bottom:120px; background-color:#ffff00; color:#000000; border-width:1px;">追加</ons-button>
 
     </ons-page>
   </ons-template>
@@ -977,7 +1070,8 @@
   <!---アルバム画面-->
   <ons-template id="album.html">
     <ons-page id="album-page">
-      <ons-toolbar>
+      <div class="background" style="background-color: white;"></div>
+      <ons-toolbar style="background-color: yellow;">
         <div class="left"><ons-back-button>logout</ons-back-button></div>
         <div class="center">アルバム</div>
       </ons-toolbar>
@@ -996,121 +1090,101 @@
     </ons-page>
   </ons-template>
 
-  <!---ボディチェック画面-->
+<!---ボディチェック画面-->
   <ons-template id="weight.html">
     <ons-page id="weight-page">
-      <ons-toolbar>
+      <ons-toolbar style="background-color:yellow">
         <div class="left"><ons-back-button>logout</ons-back-button></div>
         <div class="center">ボディチェック</div>
       </ons-toolbar>
-      <div class="box" style="text-align:center">
-      <!-- 体重グラフ -->
-      <canvas id="myChart"  height="250px"></canvas>
+      <div class="background" style="background-color:white"></div>
+      <div class="chartWrapper" style="position: relative; overflow-x: scroll; margin-top:30px;">
+        <div class="chartContainer" style="height:300px;">
+          <canvas id="myChart" style="height:300px; position: absolute; left: 0; top: 0; pointer-events:none;"></canvas>
+        </div>
       </div>
-
+      <br><br><br><br>
       <!--体重・BMI-->
-      <table style="margin:auto"><tr>
+      <table style=" margin:auto;font-size:18pt;"><tr>
       <td>体重：</td><td><ons-input id="weight-inp" modifier="underbar"></ons-input></td><td>
       <ons-button id="weight-button">設定</ons-button><br></td></tr><tr>
-      <td>BMI:</td><td><p id="bmi"></p></td><td></td></tr>
+      <td>BMI：</td><td><p id="bmi"></p></td><td></td></tr>
       </table>
     </ons-page>
   </ons-template>
 
   <!---カロリータンパク質画面-->
   <ons-template id="nutrition.html">
-    <ons-page id="nutrition-page">
-      <ons-toolbar style="background-color: yellow;">
-        <div class="left"><ons-back-button>home</ons-back-button></div>
-        <div class="center">カロリータンパク質</div>
-      </ons-toolbar>
-      <div class="content" style="text-align: center">
-        <!---カロリー表示-->
+   <ons-page id="nutrition-page">
+      <div class="background" style="background-color: white;"></div>
+    <ons-toolbar style="background-color: yellow;">
+      <div class="background" style="background-color: white;"></div>
+      <div class="left"><ons-back-button>logout</ons-back-button></div>
+      <div class="center">カロリータンパク質</div>
+    </ons-toolbar>
+    
+    <div class="content" style="text-align: center">
+      <!---カロリーバー表示追加-->
+      <p>カロリー(Kcal)</p>
+      <meter id="cal-meter" max="4000" style="width:70%"></meter>
+      <!---タンパクバー質表示追加-->
+      <p>タンパク質(g)</p>
+      <meter id="pro-meter" max="300" style="width:70%"></meter>
+      <!---カロリー入力追加-->
       <p>カロリー</p>
-      <div class="gauge">
-	    <span class="label"></span>
-	    <span class="fill">
-		  <span class="label"></span>
-	    </span>
-      </div>
-      <!---タンパク質表示-->
+      <input type="number" id="cal">
+      <!---タンパク質入力追加-->
       <p>タンパク質</p>
-      <div class="gauge">
-	    <span class="label"></span>
-	    <span class="fill">
-		  <span class="label"></span>
-	    </span>
-      </div>
-      <!---カロリー入力-->
-      <p>カロリー<span id="span2"></span></p>
-      <input type="number" id="number2">
-      <!---タンパク質入力-->
-      <p>タンパク質<span id="span2"></span></p>
-      <input type="number" id="number2">
-      <input type="button" value="記録" onclick="clickbtn3()">
-      </div>
+      <input type="number" id="protain"><br>
+      <ons-button id="nut-button">記録</ons-button>
+    </div>
+    
     </ons-page>
   </ons-template>
-
+  <!---CSS追加-->
   <style>
-    .gauge{
-      width: 120px;
-      height: 20px;
-      border: 1px solid silver;
-      background: #f9f9f9;
-      position: relative;
-      left: 120px;
-    }
-    .gauge .fill{
-      width: 100%;
-      height: 100%;
-      background: #126ece;
-      clip-path: inset(0 calc(100% - var(--percent, 100%)) 0 0);
-      display: block;
-    }
-    .gauge .label {
-      position: absolute;
-      top: 2px;
-      right: 10px;
-      display: block;
-      font-size: 12px;
-    }
-    .gauge .fill .label {
-      color: white;
-    }
-    .gauge>.label {
-      z-index: 0;
+    p{
+      text-align: center;
     }
   </style>
+      
+	
 
   <!---プロフィール画面-->
   <ons-template id="profile.html">
     <ons-page id="profile-page">
-      <ons-toolbar>
+      <div class="background" style="background-color: white;"></div>
+    <ons-toolbar style="background-color: yellow;">
         <div class="left"><ons-back-button>logout</ons-back-button></div>
         <div class="center">プロフィール</div>
       </ons-toolbar>
       <div style="position:relative;width:100%;height:90%;">
-
-        <div><!-- 身長レンジスライダー  -->
-          <input id="pro-height-range" type="range" style="-webkit-appearance:slider-vertical;writing-mode:bt-lr;" value="170.0" min="140.0" max="190.0" step="0.1" oninput="document.getElementById('pro-height').value=this.value">
-          <output id="pro-height">170.0</output><br>
-        </div>
-
-        <div><!-- 体重レンジスライダー  -->
-          <input id="pro-weight-range" type="range" style="width:70%" value="60.0" min="40.0" max="120.0" step="0.1"oninput="document.getElementById('pro-weight').value=this.value">
-          <output id="pro-weight">60.0</output><br>
-          <span style="position:absolute; left:10%;">40</span><span style="position:absolute; right:10%">120cm</span>
-        </div>
-
-        <!-- 身長・体重フォーム  -->
+        <ons-row>
+          <ons-col width="70%">
+            <img src="img/profile.png" style="width:100%; height:100%">
+          </ons-col>
+          <!-- 身長レンジスライダー   style="-webkit-appearance:slider-vertical;writing-mode:bt-lr;" -->
+          <ons-col width="30%">
+            <span>   180cm</span>
+            <input id="pro-height-range" type="range" style="-webkit-appearance:slider-vertical;writing-mode:bt-lr;" value="170.0" min="140.0" max="190.0" step="0.1" oninput="document.getElementById('pro-height').value=this.value">
+            <span>   140</span>
+            <br><br>
+            <output id="pro-height">170.0</output>
+          </ons-col>
+          <!-- 体重レンジスライダー  style="position:absolute; left:10%; width:100%" -->
+          <ons-col width="100%">
+            <input id="pro-weight-range" type="range" style="width:70%" value="60.0" min="40.0" max="120.0" step="0.1" oninput="document.getElementById('pro-weight').value=this.value">
+            <output id="pro-weight" style="position:absolute; right:10%;%">60.0</output><br>
+            <span>40</span><span style="position:absolute; right:25%">120kg</span>
+          </ons-col>
+        </ons-row>
+      <!-- 身長・体重フォーム  -->
         <div style="position:absolute; right:0; bottom:0;">
           身長：<ons-input id="pro-height-inp" modifier="underbar" value="170.0"></ons-input>cm<br>
           体重：<ons-input id="pro-weight-inp" modifier="underbar" value="60.0"></ons-input>kg<br>
-          <p>BMI:</p><p id="bmi"></p>
+          <p>BMI:</p><p id="pro-bmi"></p>
           <ons-button id="register-button">設定</ons-button>
         </div>
-      
       </div>
     </ons-page>
   </ons-template>
