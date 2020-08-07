@@ -9,6 +9,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@2.8.0"></script>
   <meta http-equiv="Content-Script-Type" content="text/javascript">
   <script src="components/loader.js"></script>
+  <script src="components/jquery/dist/jquery.js"></script>
   <script src="lib/onsenui/js/onsenui.min.js"></script>
   <link rel="stylesheet" href="components/loader.css">
   <link rel="stylesheet" href="lib/onsenui/css/onsenui.css">
@@ -28,12 +29,12 @@
     var Schedule = ncmb.DataStore("schedule");
     var Weight = ncmb.DataStore("weight");
     
+    //スケジュール詳細画面の表示用処理
     function onLoadFunc2(dater){
         var currentUser = ncmb.User.getCurrentUser();
         if(currentUser) {
         //一旦カードをすべて消去する
           var maincont = document.getElementById('detaildiv');
-          
           if (maincont.hasChildNodes()){
             for (var i=maincont.childNodes.length-1; i>=0; i--) {
               maincont.removeChild(maincont.childNodes[i]);
@@ -45,6 +46,7 @@
                   .fetchAll()
                   .then(function(results){
               for(var i = 0; i < results.length; i++){
+                tmp = results[i];
                 //カード作成
                 var onscard = document.createElement('ons-card');
                 //pタグ作成
@@ -56,33 +58,38 @@
                 //ボタンを作成
                 var cardbutton = document.createElement('ons-button');
                 //ボタンの設定
-                cardbutton.setAttribute("style","width:45%; text-align:center; margin-right:15px;background-color:#ffff00;color:#000000; border-radius:10px;");
+                cardbutton.setAttribute("style","width:45%; text-align:center;background-color:#ffff00;color:#000000; border-radius:10px;margin-right:15px;");
                 //ボタンの文字
-                cardbutton.innerHTML = "変更";
+                cardbutton.innerHTML = "編集";
+                 //ボタンを押した時の処理
+                cardbutton.onclick = (function(objid) {
+                  return function() {
+                    document.querySelector('#navigator').pushPage('scheduleregister.html',{data:{date:dater,objId:objid.objectId,detail:objid.detail}});
+                  }
+                })(results[i]);
+
                 //ボタンを作成
                 var cardbuttonb = document.createElement('ons-button');
+                //ボタンの設定
+                cardbuttonb.setAttribute("style","width:45%; text-align:center;background-color:#ffff00;color:#000000; border-radius:10px;margin-left:15px;");
                 //ボタンの文字
                 cardbuttonb.innerHTML = "削除";
-                //ボタンの設定
-                cardbuttonb.setAttribute("style","width:45%; text-align:center; margin-left:15px; background-color:#ffff00;color:#000000;border-radius:10px;");
-                //ボタンを押した時の処理
-                cardbutton.onclick = (function(objId){
-                  
-                })
-                cardbuttonb.onclick = (function(objId){
+                 //ボタンを押した時の処理
+                cardbuttonb.onclick = (function(objid) {
                   return function() {
-                    btnDelete(objId);
+                    console.log(objid);
+                    btnDelete(objid);
                   }
                 })(results[i].objectId);
-               //カードの中にボタンを入れる
+                //カードの中にボタンを入れる
                 onscard.appendChild(cardbutton);
                 //カードの中にボタンを入れる
                 onscard.appendChild(cardbuttonb);
                 //divの中にカードを入れる
-                 maincont.appendChild(onscard);
-                
+                maincont.appendChild(onscard);
               }
-            });
+            })
+            
             //削除ボタンを押したときの処理
             function btnDelete(objId){
               Schedule.equalTo("objectId",objId)
@@ -90,6 +97,7 @@
                       //成功時報酬
                       .then(function(result){
                         result.delete();
+                        alert("削除");
                         onLoadFunc2(dater);
                       })
                       //削除失敗時の処理
@@ -97,6 +105,7 @@
                         alert("削除失敗");
                       });
             }
+            
         }   
       }
     
@@ -120,10 +129,42 @@
                 // エラー処理
               });
           }
+          page.querySelector('#signin-button').onclick = function(){
+            document.querySelector('#navigator').popPage();
+          };
           
 
       //ログインページの処理
       }else if(page.matches('#signin-page')){
+        // 自動ログイン
+        (async () => {
+          let user = ncmb.User.getCurrentUser();
+          console.log(user);
+          if (!user) return; // 未認証であれば終了
+          try {
+            // 会員情報の取得を試みる
+            await ncmb.User
+              .equalTo('objectId', user.get('objectId'))
+              .fetch();
+            console.log("セッションの取得");
+          } catch (e) {
+            // セッションの有効期限切れ
+            console.log("セッションの有効期限切れ");
+            user = null;
+            localStorage.removeItem("NCMB/"+ncmb.apikey+"/currentUser");
+          }
+          // セッションがある時、ログインする
+          ncmb.User.login(user)
+              .then(function(data){
+                // ログイン後処理
+                console.log("rogin");
+                document.querySelector('#navigator').pushPage('common.html');
+              })
+              .catch(function(err){
+                // エラー処理
+                console.log("no");
+              });
+        })();
         //ログインボタン押下処理
          page.querySelector('#signin-button').onclick = function() {
            //ユーザー名とパスワードでログイン
@@ -146,6 +187,7 @@
            var currentUser = ncmb.User.getCurrentUser();
         if (currentUser) {
           page.querySelector("ons-back-button").onclick = function () {
+              ncmb.User.logout();
               document.querySelector('#navigator').pushPage('signin.html');
           };
           page.querySelector("#newgoal-button").onclick = function () {
@@ -160,31 +202,41 @@
         var currentUser = ncmb.User.getCurrentUser();
         if (currentUser) {
           page.querySelector("ons-back-button").onclick = function () {
+              ncmb.User.logout();
               document.querySelector('#navigator').popPage();
           };
   
           page.querySelector("#new-button").onclick = function() {
-              var goal = new Goal;
-              //目標登録
-              goal.set("goal", document.getElementById("target").value)
+            var v_goal = document.getElementById("target").value;
+            if(v_goal == 0){
+                document.getElementById("eee").textContent = "目標を入力してください";
+            }else if(v_goal.length > 30){
+                document.getElementById("eee").textContent = "30字以内で入力してください";
+            }else{
+                var goal = new Goal;
+                //目標登録
+                goal.set("goal", document.getElementById("target").value)
                     .set("user_id",currentUser.get("objectId"))
                     .set("flag",false)
                     .save()
-              .then(function(object){
+                .then(function(object){
                 onLoadFunc(); //onLoadFuncを呼び出し
-              });
-              document.querySelector("#navigator").popPage();
-          };
-        }
+                });
+                document.querySelector("#navigator").popPage();
+            }
+            };
+            }
       
       //スケジュールページの処理
       } else if (page.matches('#schedule-page')){
         var currentUser = ncmb.User.getCurrentUser();
+        var schedule = new Schedule;
         if (currentUser) {
           page.querySelector("ons-back-button").onclick = function () {
+            ncmb.User.logout();
             document.querySelector('#navigator').pushPage('signin.html');
           };
-        
+        var flag;
         var m = 0;
         var y = 0;
         var d = 0;
@@ -221,7 +273,6 @@
          for(j=0; j<7; j++){
             // masatokg
             page.querySelector("#detail-buttona" + i + "b" + j).onclick =  function (event) { 
-                
                 // 選択した行列番号をid文字列から取得
                 mdarray = event.target.id.toString().replace('detail-buttona','').split('b');
                 cal_row = Number(mdarray[0]);
@@ -273,7 +324,7 @@
           document.getElementById("currentDate").innerHTML = y+"年"+m+"月";
           showCalendar(new Date(y,m-1,1));
           for(i=0; i<SHOWWEEK; i++){
-         for(j=0; j<7; j++){
+            for(j=0; j<7; j++){
             // masatokg
             page.querySelector("#detail-buttona" + i + "b" + j).onclick =  function (event) {
                 
@@ -305,14 +356,7 @@
           －HTMLタグ使えます．
           祝日とあわせてMAXEVENT件までスケジュールを設定可能
           *** notice スケジュール登録 ***/
-          function setSchedules(){
-            //サンプル予定
-            newSchedule( 2009,  3,  6, "", "飲み会<br>" );
-            newSchedule( 2009,  3,  8, "", "<div align='center' style='background-color:#ff99cc;'><font color='#660000'>映画<\/font><\/div>" );
-            newSchedule( 2009,  3, 24, "", "<span style='background-color:#00ffff; color:blue'>卒業式<\/span><br>" );
-            //newSchedule( 2009,  3, calDate(2009, 3, 3, 0), "", "<font color='green'>掃除当番<\/font>" ); //4月第3日曜日
-            newSchedule( 2009,  3, 16, "bgcolor='#ff6699' style='color:white'", "ちーちゃん誕生日<br>" );
-          }
+          
 
           //year年month月 第week day曜日の計算
           function calDate( year, month, week, day ){
@@ -417,8 +461,7 @@
             tmpDate = moveDate( argDate, -argDate.getDay() );
             //"今日"を記憶
             cal_toDayDate = new Date();
-            //スケジュールを登録
-            setSchedules();
+            
             //描画用コード開始
             docubuf = "<table border='3' cellspacing='0' " + DEFAULT + ">";
             //曜日
@@ -476,27 +519,32 @@
                 // docubuf += tmpDate.getDate() + "<br>";
                 docubuf += tmpDate.getDate() + "<br>";
                 
-                //スケジュール埋め込み．複数あったら全部．登録順．
-                for(k=0; k<si; k++)
-                  if( sdlDate[k].getDate() == tmpDate.getDate()
-                      && sdlDate[k].getMonth() == tmpDate.getMonth()
-                      && sdlDate[k].getYear() == tmpDate.getYear()
-                  )
-                docubuf += sdlName[k];
 
                 //日を進める
+                docubuf += "<div id = 'mark" + tmpDate.getFullYear() + (tmpDate.getMonth()+1) + tmpDate.getDate() + "'><\/div>"
                 docubuf += "<\/ons-button>";
                 tmpDate = moveDate(tmpDate,1);
-                
                 docubuf += "<\/td>";
               }
               docubuf += "<\/tr>";
             }
             docubuf += "<\/table>";
-            // console.log("XXXXXXXX");
-            // console.log(docubuf);
-            // console.log("XXXXXXXX");
             divSdlCal.innerHTML = docubuf;
+            /***for(i=0; i<SHOWWEEK; i++){
+              for(j=0; j<7; j++){
+                var q = i;
+                var a = j;
+                Schedule.equalTo("user_id",currentUser.get("objectId"))
+                  .equalTo("date",glbl_day[i][j])
+                  .fetchAll()
+                  .then(function(results){
+                      if(results.length > 0){
+                        console.log(glbl_day[q][a]);
+                      }
+                  })
+              }
+            }***/
+            
           }
         }
         
@@ -508,8 +556,8 @@
         page.querySelector("ons-back-button").onclick = function () {
             document.querySelector('#navigator').popPage;
           };
-        page.querySelector("#newschedule-button").onclick = function() {
-          document.querySelector('#navigator').pushPage('scheduleregister.html',{data:{date:page.data.date}});
+        page.querySelector("#newschedulebutton").onclick = function() {
+          document.querySelector('#navigator').pushPage('scheduleregister.html',{data:{date:page.data.date,flag:0}});
         };
               
         currentDate2.innerHTML = page.data.date.getFullYear() + "年" + (page.data.date.getMonth()+1) + "月" + page.data.date.getDate() + "日 ";
@@ -521,40 +569,78 @@
         if (currentUser) {
           var callDate = page.data.date;
           var date = new Date(callDate.getFullYear(),callDate.getMonth(), callDate.getDate());
-          
           page.querySelector("ons-back-button").onclick = function () {
               document.querySelector('#navigator').popPage();
           };
           currentDate3.innerHTML = date.getFullYear() + "年" + (date.getMonth()+1) + "月" + date.getDate() + "日 ";
-          page.querySelector("#newschedule-button").onclick = function() {
-              var schedule = new Schedule;
-              
-              //スケジュール登録
-              schedule.set("detail", document.getElementById("target").value)
-                      .set("user_id",currentUser.get("objectId"))
-                      .set("date",date)
-                      .save()
-                      .then(function(object)
-                      {
-                        onLoadFunc2(callDate);
-                      })
-                      .catch(function(error)
-                      {alert("保存失敗:"+JSON.stringify(error));
-                      });
-              
-              document.querySelector("#navigator").popPage();
-          };
+          //追加ボタンを押したか、編集ボタンを押したかの判断
+          if(page.data.flag == 0){
+            //追加ボタンを押して遷移した場合の処理
+            page.querySelector("#newschedulebutton").onclick = function() {
+                var schedule = new Schedule;
+                var inpw = document.getElementById("target").value;
+                //バリデーションチェック
+                if(inpw == 0){  //未入力
+                    document.getElementById("weival").textContent = '必ず入力してください';
+                }else if(String(inpw).length > 15){  //5桁以上の入力
+                    document.getElementById("weival").textContent = '１５文字以内で入力してください';
+                }else{
+                //スケジュール登録
+                schedule.set("detail", document.getElementById("target").value)
+                        .set("user_id",currentUser.get("objectId"))
+                        .set("date",date)
+                        .save()
+                        .then(function(object)
+                        {
+                          onLoadFunc2(callDate);
+                        })
+                        .catch(function(error)
+                        {alert("保存失敗:"+JSON.stringify(error));
+                        });
+                
+                document.querySelector("#navigator").popPage();
+                }
+            };
+          }else{
+            //編集ボタンを押して遷移した場合の処理
+            target.innerHTML = page.data.detail;
+            page.querySelector("#newschedulebutton").onclick = function() {
+            var schedule = new Schedule;
+            var inpw = document.getElementById("target").value;
+            //バリデーションチェック
+            if(inpw == 0){  //未入力
+                document.getElementById("weival").textContent = '必ず入力してください';
+            }else if(String(inpw).length > 15){  //5桁以上の入力
+                document.getElementById("weival").textContent = '１５文字以内で入力してください';
+            }else{
+            Schedule.equalTo("objectId", page.data.objId)
+                      .fetch()
+                      //成功時報酬
+                      .then(function(result){
+                          //スケジュールupdate
+                          result.set("detail", document.getElementById("target").value);
+                          return result.update();
+                        })
+                        .then(function(results){
+                          console.log("更新成功");
+                          onLoadFunc2(callDate);
+                        });
+            document.querySelector("#navigator").popPage();
+            }
+            }
+          }
         }
       //アルバムページの処理
       }else if(page.matches('#album-page')){
          page.querySelector("ons-back-button").onclick = function () {
+            ncmb.User.logout();
             document.querySelector('#navigator').pushPage('signin.html');
         };
       //ボディチェックページの処理
       }else if(page.matches('#weight-page')){
         var Weight = ncmb.DataStore("weight");
         var currentUser = ncmb.User.getCurrentUser();
-        var weight = new Weight;
+        
         var date = new Date();
         if (currentUser) { 
           //ログアウト処理
@@ -567,13 +653,17 @@
 
           //設定ボタンを押した時の処理
           page.querySelector("#weight-button").onclick = function() {
+            var weight = new Weight;
             //体重の登録
             weight.set("weight", document.getElementById("weight-inp").value)
                 .set("date",date)
                 .set("user_id",currentUser.get("objectId"))
-                .save();
+                .save()
+                .then(function(object)
+                {
+                    onWeight();
+                });
             //ページの読み込み
-            onWeight();
           }
         };
       //カロリータンパク質ページの処理
@@ -582,6 +672,7 @@
         if (currentUser) {
           //バックボタンを押した時の処理追加
           page.querySelector("ons-back-button").onclick = function () {
+            ncmb.User.logout();
             document.querySelector('#navigator').pushPage('signin.html');
           };
           //記録ボタンを押した時の処理追加
@@ -614,6 +705,7 @@
         var date = new Date();
         // ログアウト処理
         page.querySelector("ons-back-button").onclick = function () {
+          ncmb.User.logout();
           document.querySelector('#navigator').pushPage('signin.html');
         };
         // 身長レンジスライダーを動かすと身長テキストボックスに入力される
@@ -654,7 +746,7 @@
     function onWeight(){
       var currentUser = ncmb.User.getCurrentUser();
       var h = 0;
-      if (currentUser) { 
+      if (currentUser) {
         //身長取得
         Profile.equalTo("user_id",currentUser.get("objectId")).fetchAll()
                 .then(function(results){
@@ -990,19 +1082,20 @@
   </ons-template>
 
   <!-- 目標登録画面 -->
- <ons-template id="newgoal.html">
+  <ons-template id="newgoal.html">
     <ons-page id="newgoal-page">
       <ons-toolbar style="background-color:yellow;">
-        <div class="left"><ons-back-button></ons-back-button></div>
-        <div class="center">目標登録</div>
+      <div class="left"><ons-back-button></ons-back-button></div>
+      <div class="center">目標登録</div>
       </ons-toolbar>
       <div class="background" style="background-color:white"></div>
       <div style="text-align:center; margin-top:150px;">
       <textarea id="target" class="textarea" rows="3" placeholder="目標を入力" style="height:150px; width:250px; border:1px solid #000000; background-color:white;"></textarea>
       </div>
 
-      <ons-button id="new-button" style="text-align:center; position: fixed; left:60px; right:60px ;bottom:120px; background-color:#ffff00; color:#000000; border-width:1px;">追加</ons-button>
+      <p id="eee" style="text-align:center; color:red"></p>
 
+      <ons-button id="new-button" style="text-align:center; position: fixed; left:60px; right:60px ;bottom:120px; background-color:#ffff00; color:#000000; border-width:1px;">追加</ons-button>
     </ons-page>
   </ons-template>
 
@@ -1042,7 +1135,7 @@
         <div id ="detaildiv"></div>
         
       </div>
-      <ons-button id="newschedule-button" style="text-align:center; position: fixed; left:60px; right:60px ;bottom:100px; background-color:#ffff00; color:#000000; border-width:1px; border-radius:10px;">追加</ons-button>
+      <ons-button id="newschedulebutton" style="text-align:center; position: fixed; left:60px; right:60px ;bottom:100px; background-color:#ffff00; color:#000000; border-width:1px; border-radius:10px;">追加</ons-button>
     </ons-page>
   </ons-template>
   <!--スケジュール登録画面-->
@@ -1061,12 +1154,11 @@
       <div style="text-align:center; margin-top:150px;">
       <textarea id="target" class="textarea" rows="1" placeholder="トレーニング内容" style="height:50px; width:250px;"></textarea>
       </div>
-
-      <ons-button id="newschedule-button" style="text-align:center; position: fixed; left:60px; right:60px ;bottom:100px; background-color:#ffff00; color:#000000; border-width:1px;">登録</ons-button>
+      <p id="weival" style="font-size:10pt;color:red;text-align:center;"></p>
+      <ons-button id="newschedulebutton" style="text-align:center; position: fixed; left:60px; right:60px ;bottom:100px; background-color:#ffff00; color:#000000; border-width:1px;">登録</ons-button>
       </div>
     </ons-page>
   </ons-template>
-
   <!---アルバム画面-->
   <ons-template id="album.html">
     <ons-page id="album-page">
@@ -1089,8 +1181,7 @@
         </div>
     </ons-page>
   </ons-template>
-
-<!---ボディチェック画面-->
+  <!---ボディチェック画面-->
   <ons-template id="weight.html">
     <ons-page id="weight-page">
       <ons-toolbar style="background-color:yellow">
@@ -1112,7 +1203,6 @@
       </table>
     </ons-page>
   </ons-template>
-
   <!---カロリータンパク質画面-->
   <ons-template id="nutrition.html">
    <ons-page id="nutrition-page">
@@ -1141,53 +1231,44 @@
     
     </ons-page>
   </ons-template>
-  <!---CSS追加-->
-  <style>
-    p{
-      text-align: center;
-    }
-  </style>
-      
-	
-
+  
   <!---プロフィール画面-->
-  <ons-template id="profile.html">
-    <ons-page id="profile-page">
-      <div class="background" style="background-color: white;"></div>
-    <ons-toolbar style="background-color: yellow;">
-        <div class="left"><ons-back-button>logout</ons-back-button></div>
-        <div class="center">プロフィール</div>
-      </ons-toolbar>
-      <div style="position:relative;width:100%;height:90%;">
-        <ons-row>
-          <ons-col width="70%">
-            <img src="img/profile.png" style="width:100%; height:100%">
-          </ons-col>
-          <!-- 身長レンジスライダー   style="-webkit-appearance:slider-vertical;writing-mode:bt-lr;" -->
-          <ons-col width="30%">
-            <span>   180cm</span>
-            <input id="pro-height-range" type="range" style="-webkit-appearance:slider-vertical;writing-mode:bt-lr;" value="170.0" min="140.0" max="190.0" step="0.1" oninput="document.getElementById('pro-height').value=this.value">
-            <span>   140</span>
-            <br><br>
-            <output id="pro-height">170.0</output>
-          </ons-col>
-          <!-- 体重レンジスライダー  style="position:absolute; left:10%; width:100%" -->
-          <ons-col width="100%">
-            <input id="pro-weight-range" type="range" style="width:70%" value="60.0" min="40.0" max="120.0" step="0.1" oninput="document.getElementById('pro-weight').value=this.value">
-            <output id="pro-weight" style="position:absolute; right:10%;%">60.0</output><br>
-            <span>40</span><span style="position:absolute; right:25%">120kg</span>
-          </ons-col>
-        </ons-row>
-      <!-- 身長・体重フォーム  -->
-        <div style="position:absolute; right:0; bottom:0;">
-          身長：<ons-input id="pro-height-inp" modifier="underbar" value="170.0"></ons-input>cm<br>
-          体重：<ons-input id="pro-weight-inp" modifier="underbar" value="60.0"></ons-input>kg<br>
-          <p>BMI:</p><p id="pro-bmi"></p>
-          <ons-button id="register-button">設定</ons-button>
+    <ons-template id="profile.html">
+      <ons-page id="profile-page">
+        <div class="background" style="background-color: white;"></div>
+      <ons-toolbar style="background-color: yellow;">
+          <div class="left"><ons-back-button>logout</ons-back-button></div>
+          <div class="center">プロフィール</div>
+        </ons-toolbar>
+        <div style="position:relative;width:100%;height:90%;">
+          <ons-row>
+            <ons-col width="70%">
+              <img src="img/profile.png" style="width:100%; height:100%">
+            </ons-col>
+            <!-- 身長レンジスライダー   style="-webkit-appearance:slider-vertical;writing-mode:bt-lr;" -->
+            <ons-col width="30%">
+              <span>　　　200cm</span>
+              <input id="pro-height-range" type="range" style="-webkit-appearance:slider-vertical;writing-mode:bt-lr; height:70%;" value="170.0" min="140.0" max="200.0" step="0.1" oninput="document.getElementById('pro-height').value=this.value">
+              <span>　　　140</span>
+              <output id="pro-height">170.0</output>
+            </ons-col>
+            <!-- 体重レンジスライダー  style="position:absolute; left:10%; width:100%" -->
+            <ons-col width="100%">
+              <input id="pro-weight-range" type="range" style="width:70%" value="60.0" min="40.0" max="120.0" step="0.1" oninput="document.getElementById('pro-weight').value=this.value">
+              <output id="pro-weight" style="position:absolute; right:10%;%">60.0</output><br>
+              <span>40</span><span style="position:absolute; right:25%">120kg</span>
+            </ons-col>
+          </ons-row>
+          <!-- 身長・体重フォーム  -->
+          <div id="form" style="position:absolute; left:60%; bottom:0;">
+            身長：<ons-input id="pro-height-inp" type="number" min="140.0" max="200.0" step="0.1" modifier="underbar" value="170.0"></ons-input>cm<br><!-- readonly -->
+            体重：<ons-input id="pro-weight-inp" type="number" min="40.0" max="120.0" step="0.1" modifier="underbar" value="60.0"></ons-input>kg<br>
+            <p>BMI:</p><p id="pro-bmi"></p>
+            <ons-button id="register-button">設定</ons-button>
+          </div>
         </div>
-      </div>
-    </ons-page>
-  </ons-template>
+      </ons-page>
+    </ons-template>
     
 </body>
 </html>
