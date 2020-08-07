@@ -28,6 +28,10 @@
     var Nutrition = ncmb.DataStore("nutrition");
     var Schedule = ncmb.DataStore("schedule");
     var Weight = ncmb.DataStore("weight");
+    //カメラ処理
+    var currentUser;
+    var imgFlag = false;
+
     
     //スケジュール詳細画面の表示用処理
     function onLoadFunc2(dater){
@@ -632,10 +636,302 @@
         }
       //アルバムページの処理
       }else if(page.matches('#album-page')){
-         page.querySelector("ons-back-button").onclick = function () {
-            ncmb.User.logout();
-            document.querySelector('#navigator').pushPage('signin.html');
-        };
+         var currentUser = ncmb.User.getCurrentUser();
+        if (currentUser) {
+          page.querySelector("ons-back-button").onclick = function () {
+              document.querySelector('#navigator').pushPage('signin.html');
+          };
+        }
+          page.querySelector('#camerachange-button').onclick = function(){
+                        document.querySelector('#navigator').pushPage('Camera.html');
+          };
+
+          $(function() {
+                  //$.mobile.defaultPageTransition = 'none';
+                  $("#myFilesBtn").click(onMyFilesBtn);
+                  
+                  $('form').on('change', 'input[type="file"]', function(e) {
+                      file = e.target.files[0],
+                      reader = new FileReader(),
+                      t = this;
+
+                      fileType = file.type.indexOf("image");
+
+                      // 画像ファイル以外の場合は何もしない
+                      if(fileType < 0){
+                          alert("画像ファイルを選択してください");
+                          return false;
+                      }
+
+                      // ファイル読み込みが完了した際のイベント登録
+                      reader.onload = (function(file) {
+                          imgFlag = true;
+                          return function(e) {
+                          //既存のプレビューを削除
+                          $("#preview").empty();
+                          // .previewの領域の中にロードした画像を表示するimageタグを追加
+                          $("#preview").append($('<img id="photo_image">').attr({
+                              src: e.target.result,
+                              width: "100%",
+                              class: "preview",
+                              title: file.name
+                          }));
+                        };
+                      })(file);
+
+                      reader.readAsDataURL(file);
+                    });
+              });
+
+          
+
+          
+          // ファイルストアに格納されたファイルデータ（画像本体以外の情報）を取得＜自分の作品＞
+                function getMyFileData(){
+                    // loading の表示
+                    /*$.mobile.loading('show', {
+                        text: 'Loading...',
+                        textVisible: true,
+                        theme: 'a',
+                        textonly: false,
+                        html: ''
+                    });
+                    */
+                    // フィールドを空に
+                    onDeleteMyPageField();
+                    // カレントユーザーの objectId を取得
+                    var objectId = currentUser.get("objectId");
+                    // 参照権限（ACL）としてカレントーユーザーにのみ読み書き権限が付与されているデータを指定
+                    var aclQueryStr = '{"*":{"read":true},"' + objectId + '":{"read":true,"write":true}}';
+                    aclQuery = JSON.parse(aclQueryStr);
+
+                    ncmb.File
+                            .equalTo("acl", aclQuery) 
+                            .order("createDate",true) // 作成日の降順を指定
+                            .limit(10) // 取得件数を10件で指定
+                            .fetchAll()
+                            .then(function(results){
+                                // ファイルデータ取得成功時の処理
+                                console.log("ファイルデータ取得成功(myFile)");
+
+                                var promises = [];
+                                for (var i = 0; i < results.length; i++) {
+                                    var object = results[i];
+                                    // ファイルデータを元にPromiseを使って１件ずつ同期処理でファイルストアから画像を取得
+                                    promises.push(downloadMyFile(object, i)); 
+                                }
+
+                                /*** Promise ***/
+                                Promise.all(promises)
+                                            .then(function(results) {
+                                                // 全てのPromise処理成功時の処理
+                                                console.log("全てのPromise処理に成功(myFile)：" + results + " OK");
+                                                // loading の表示を終了
+                                                //$.mobile.loading('hide');
+                                            })
+                                            .catch(function(error){
+                                                // 全てのPromise処理成功時の処理
+                                                console.log("Promise処理に失敗(myFile)：" + error);
+                                                alert("Promise処理に失敗(myFile)" );
+                                                // loading の表示を終了
+                                                //$.mobile.loading('hide');
+                                            });
+                            })
+                            .catch(function(error){
+                                // ファイルデータ取得失敗時の処理
+                                console.log("ファイルデータ取得失敗(myFile)：" + error);
+                                alert("Promise処理に失敗(myFile)" );
+                                // loading の表示を終了
+                                $.mobile.loading('hide');
+                            });
+                }
+
+                              // ファイルストアから画像を取得して「MY イラスト」に表示
+                function downloadMyFile(object, i) {
+                    /*** Promise ***/
+                    return new Promise(function(resolve, reject) {
+                        //  画像・作品名の表示先を指定
+                        var myImageId = "myImage_" + i;
+                        var myTitleId = "myTitle_" + i;
+
+                        // ファイルデータからファイル名を取得
+                        var fileName = object.fileName;
+                        var fileName_encode = encodeURI(fileName);
+
+                        // ダウンロード（データ形式をblobを指定）
+                        ncmb.File.download(fileName_encode, "blob")
+                                      .then(function(blob) {
+                                          // ファイルダウンロード成功時の処理
+                                          var reader = new FileReader();
+                                          reader.onload = function(e) {
+                                              // 画像URLを設定
+                                              var dataUrl = reader.result;
+                                              document.getElementById(myImageId).src = dataUrl;
+                                              //  ファイル名を分解
+                                              var fileNameArray = fileName.split('_');
+                                              // 作品名を表示
+                                              var imageName = "「" + fileNameArray[0] + "」";
+                                              document.getElementById(myTitleId).innerHTML = imageName;
+                                          }
+                                          // ファイルリーダーにデータを渡す
+                                          reader.readAsDataURL(blob);                        
+                                      
+                                          resolve("画像" + i); 
+                                      })
+                                      .catch(function(error) {
+                                          // ファイルダウンロード失敗時の処理
+                                          reject("画像" + i);
+                                      });
+                    });
+                };
+
+                function onDeleteHomeScreenPageField() {
+                    // フィールドを空に
+                    $("#imgName").val("");
+                    $("#photo").val("");
+                    $("#preview").empty();
+                }
+
+                function onDeleteMyPageField() {
+                    // フィールドを空に
+                    $("#myImage_0").attr("src", "");
+                    $("#myImage_1").attr("src", "");
+                    $("#myImage_2").attr("src", "");
+                    $("#myImage_3").attr("src", "");
+                    $("#myTitle_0").html("");
+                    $("#myTitle_1").html("");
+                    $("#myTitle_2").html("");
+                    $("#myTitle_3").html("");
+                }
+                // 「MY イラスト」ボタン押下時の処理
+                  function onMyFilesBtn(){
+                      // My イラスト画面へ遷移
+                      //$.mobile.changePage('#MyPage');
+                      // 画像一覧のダウンロード
+                      getMyFileData();
+                  }
+
+                  //カメラページ
+                  }else if(page.matches('#Camera-page')){
+                    var currentUser = ncmb.User.getCurrentUser();
+                  if (currentUser) {
+                    page.querySelector("ons-back-button").onclick = function () {
+                        document.querySelector('#navigator').pushPage('signin.html');
+                    };
+                  }
+
+                  $(function() {
+                      //$.mobile.defaultPageTransition = 'none';
+                      //$("#loginBtn").click(onLoginBtn);
+                      //$("#registerBtn").click(onIDRegisterBtn);
+                      //$("#YesBtn_logout").click(onLogoutBtn);
+                      //$("#everyoneBtn").click(onEveryoneBtn);
+                      //$("#myFilesBtn").click(onMyFilesBtn);
+                      $("#uploadBtn").click(onUploadBtn);
+
+                      $('form').on('change', 'input[type="file"]', function(e) {
+                          file = e.target.files[0],
+                          reader = new FileReader(),
+                          t = this;
+
+                          fileType = file.type.indexOf("image");
+
+                          // 画像ファイル以外の場合は何もしない
+                          if(fileType < 0){
+                              alert("画像ファイルを選択してください");
+                              return false;
+                          }
+
+                          // ファイル読み込みが完了した際のイベント登録
+                          reader.onload = (function(file) {
+                              imgFlag = true;
+                              return function(e) {
+                              //既存のプレビューを削除
+                              $("#preview").empty();
+                              // .previewの領域の中にロードした画像を表示するimageタグを追加
+                              $("#preview").append($('<img id="photo_image">').attr({
+                                  src: e.target.result,
+                                  width: "100%",
+                                  class: "preview",
+                                  title: file.name
+                              }));
+                            };
+                          })(file);
+
+                          reader.readAsDataURL(file);
+                        });
+                  });
+
+                  function onUploadBtn() {
+            // 作品名を取得
+            var imgName = $("#imgName").val();
+            // 入力チェック
+            if (imgName == "") {
+                alert("作品名を入力してください");
+                return;
+            }
+            if (imgFlag == false) {
+                alert("投稿する写真を選択してください");
+                return;
+            }
+
+            var img = document.getElementById('photo_image');
+            var photoType = $("#photo")[0].files[0].type;
+            var base64 = ImageToBase64(img, photoType);
+            var photoData = toBlob(base64, photoType);
+
+            // loading の表示
+           /* $.mobile.loading('show', {
+                text: 'Sending...',
+                textVisible: true,
+                theme: 'a',
+                textonly: false,
+                html: ''
+            });*/
+
+            // uuidを生成
+            var uuid = makeUUID();
+            // 選択した画像のファイル名を取得
+            var fileName = $("#photo")[0].files[0].name;
+            var sp = fileName.split('.');
+            // 選択した画像の拡張子を取得
+            var fileName_type = sp[sp.length-1];
+            // 作品名をエンコード
+            imgName = encodeURIComponent(imgName);
+            // カレントユーザーのユーザー名を取得
+            var currentUserName = currentUser.get("userName");
+            // 作品の保存名を作成「作品名_作者名_uuid.拡張子」
+            var photoName = imgName + "_" + currentUserName + "_" + uuid + "." + fileName_type;
+
+            // 参照権限（ACL）を生成
+            var acl = new ncmb.Acl();
+            // 全員「読み込み可」、特定のユーザーのみの「書き込み可」で設定
+            acl.setPublicReadAccess(true)
+                .setUserReadAccess(currentUser, true)
+                .setUserWriteAccess(currentUser, true);
+
+            // 写真アップロード
+            ncmb.File
+                    .upload(photoName, photoData, acl)
+                    .then(function(result){
+                        // アップロード成功時の処理
+                        alert("アップロード成功");
+                        console.log("アップロード成功");
+                        // フィールドを空に
+                        onDeleteHomeScreenPageField
+                        // loading の非表示
+                       // $.mobile.loading('hide');
+                    })
+                    .catch(function(error){
+                        // アップロード失敗時の処理
+                        alert("アップロード失敗：" + error);
+                        console.log("アップロード失敗：" + error);
+                        // loading の非表示
+                        //$.mobile.loading('hide');
+                    });
+        }
+
+
       //ボディチェックページの処理
       }else if(page.matches('#weight-page')){
         var Weight = ncmb.DataStore("weight");
@@ -668,75 +964,108 @@
         };
       //カロリータンパク質ページの処理
       }else if(page.matches('#nutrition-page')){
+        var date = new Date;
         var currentUser = ncmb.User.getCurrentUser();
         if (currentUser) {
-          //バックボタンを押した時の処理追加
+            //バックボタンを押した時の処理追加
+            page.querySelector("ons-back-button").onclick = function () {
+              document.querySelector('#navigator').pushPage('signin.html');
+            };
+            //記録ボタンを押した時の処理追加
+            page.querySelector("#nut-button").onclick = function(){
+            var nutrition = new Nutrition;
+            //入力数値取得
+            var inpcal = document.getElementById("cal").value;
+            var inppro = document.getElementById("protain").value;
+            //バリデーションチェック
+            if(inpcal == 0 && inppro == 0){
+                document.getElementById("valnu").textContent = 'どちらか必ず入力してください';
+            }else if(isNaN(inpcal)){  //数字以外の入力
+                document.getElementById("valcal").textContent = '数字で入力してください';
+            }else if(isNaN(inppro)){
+                document.getElementById("valpro").textContent = '数字で入力してください';
+            }else{
+                document.getElementById("valnu").textContent = '';
+                document.getElementById("valcal").textContent = '';
+                document.getElementById("valpro").textContent = '';
+
+                //カロリータンパク質登録(カロリー、タンパク質、今日の日付、ログイン中のユーザ)追加
+                nutrition.set("cal", document.getElementById("cal").value)
+                        .set("protain", document.getElementById("protain").value)
+                        .set("date", date)
+                        .set("user_id", currentUser.get("objectId"))
+                        .save()
+                    .catch(function(error){
+                        console.log(error);
+                    });
+                    //meterバーの割合数字、valueの値が割合の値になる追加
+                document.getElementById("cal-meter").value = document.getElementById("cal").value;
+                document.getElementById("pro-meter").value = document.getElementById("protain").value;
+            }
+            };
+        }
+      //プロフィールページの処理
+      }else if(page.matches('#profile-page')){
+          var currentUser = ncmb.User.getCurrentUser();
+          var Profile = ncmb.DataStore("profile");
+          var Weight = ncmb.DataStore("weight");
+          var profile = new Profile;
+          var weight = new Weight;
+          var date = new Date();
+
+          // ログアウト処理
           page.querySelector("ons-back-button").onclick = function () {
             ncmb.User.logout();
             document.querySelector('#navigator').pushPage('signin.html');
           };
-          //記録ボタンを押した時の処理追加
-          page.querySelector("#nut-button").onclick = function(){
-          //今日の日付を取得追加
-          var date = new Date;
-          //データベース取得追加
-          var nutrition = new Nutrition;
-          //カロリータンパク質登録(カロリー、タンパク質、今日の日付、ログイン中のユーザ)追加
-          nutrition.set("cal", document.getElementById("cal").value)
-                  .set("protain", document.getElementById("protain").value)
-                  .set("date", date)
-                  .set("user_id", currentUser.get("objectId"))
-                  .save()
-                .catch(function(error){
-                  console.log(error);
-                });
-                //meterバーの割合数字、valueの値が割合の値になる追加
-          document.getElementById("cal-meter").value = document.getElementById("cal").value;
-          document.getElementById("pro-meter").value = document.getElementById("protain").value;
-          };
+          // 身長レンジスライダーを動かすと身長テキストボックスに入力される
+          page.querySelector("#pro-height-range").onclick = function() {
+            document.getElementById('pro-height-inp').value=this.value;
           }
-      //プロフィールページの処理
-      }else if(page.matches('#profile-page')){
-        var currentUser = ncmb.User.getCurrentUser();
-        var Profile = ncmb.DataStore("profile");
-        var Weight = ncmb.DataStore("weight");
-        var profile = new Profile;
-        var weight = new Weight;
-        var date = new Date();
-        // ログアウト処理
-        page.querySelector("ons-back-button").onclick = function () {
-          ncmb.User.logout();
-          document.querySelector('#navigator').pushPage('signin.html');
+          // 体重レンジスライダーを動かすと体重テキストボックスに入力される
+          page.querySelector("#pro-weight-range").onclick = function() {
+            document.getElementById('pro-weight-inp').value=this.value;
+          }
+          //設定ボタンを押した時の処理
+          page.querySelector("#register-button").onclick = function() {
+            var proHeight = document.getElementById("pro-height-inp").value;
+            var proWeight = document.getElementById("pro-weight-inp").value;
+
+            //バリデーションチェック
+            if(isNaN(proHeight)){  //数字以外の入力
+                document.getElementById("pro-err").textContent = '数字5桁以内で入力してください';
+            }else if(proHeight == 0 || proHeight == null){  //未入力
+                document.getElementById("pro-err").textContent = '必ず入力してください';
+            }else if(String(proHeight).length > 5){  //5桁以上の入力
+                document.getElementById("pro-err").textContent = '数字5桁以内で入力してください';
+            }else if(isNaN(proWeight)){  //数字以外の入力
+                document.getElementById("pro-err").textContent = '数字5桁以内で入力してください';
+            }else if(proWeight == 0){  //未入力
+                document.getElementById("pro-err").textContent = '必ず入力してください';
+            }else if(String(proWeight).length > 5){  //5桁以上の入力
+                document.getElementById("pro-err").textContent = '数字5桁以内で入力してください';
+            }else{
+                document.getElementById("pro-err").textContent = '';
+                //体重の登録
+                profile.set("height", proHeight)
+                      .set("user_id",currentUser.get("objectId"))
+                      .save();
+                weight.set("weight", proWeight)
+                      .set("date",date)
+                      .set("user_id",currentUser.get("objectId"))
+                      .save();
+            
+                //BMIの計算
+                var bmi = (proWeight) / (proHeight/100) / (proHeight/100);
+                bmi = Math.round(bmi * 10) / 10;
+                //pタグに出力
+                document.getElementById("pro-bmi").textContent = bmi;
+                //ページの読み込み
+                document.querySelector("ons-tab[page='profile.html']").click();
+                //location.reload();
+            }
+          }
         };
-        // 身長レンジスライダーを動かすと身長テキストボックスに入力される
-        page.querySelector("#pro-height-range").onclick = function() {
-          document.getElementById('pro-height-inp').value=this.value;
-        }
-        // 体重レンジスライダーを動かすと体重テキストボックスに入力される
-        page.querySelector("#pro-weight-range").onclick = function() {
-          document.getElementById('pro-weight-inp').value=this.value;
-        }
-        //設定ボタンを押した時の処理
-        page.querySelector("#register-button").onclick = function() {
-          //体重の登録
-          profile.set("height", document.getElementById("pro-height-inp").value)
-                .set("user_id",currentUser.get("objectId"))
-                .save();
-          weight.set("weight", document.getElementById("pro-weight-inp").value)
-                .set("date",date)
-                .set("user_id",currentUser.get("objectId"))
-                .save();
-          
-          //BMIの計算
-          var bmi = (document.getElementById("pro-weight-inp").value) / (document.getElementById("pro-height-inp").value/100) / (document.getElementById("pro-height-inp").value/100);
-          bmi = Math.round(bmi * 10) / 10;
-          //pタグに出力
-          document.getElementById("pro-bmi").textContent = bmi;
-          //ページの読み込み
-          document.querySelector("ons-tab[page='profile.html']").click();
-          //location.reload();
-        }
-      };
     });
     if (ons.platform.isIPhoneX()) {
       document.documentElement.setAttribute('onsflag-iphonex-portrait', '');
@@ -888,124 +1217,55 @@
         }
     }
 
-    //カメラ処理
-        function onDiviceReady() {
-        //readerはファイルの中身を読み込んでいる
-      var reader = new FileReader();
-        //fileの中身が読み込まれるとfunction(e)を実行
-      reader.onload = function(e) {
-        //reader.resultはreaderの中身のこと
-        var dataUrl = reader.result;
-        //document.getElementById("image").srcは画像ファイルのurl
-        document.getElementById("image").src = dataUrl;
+    //カメラ画像処理
+      function ImageToBase64(img, mime_type) {
+      // New Canvas
+      var canvas = document.createElement('canvas');
+      canvas.width  = img.width;
+      canvas.height = img.height;
+      // Draw Image
+      var ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, img.width, img.height);
+      // To Base64
+      return canvas.toDataURL(mime_type);
+  }
+
+  function toBlob(base64, mime_type) {
+      var bin = atob(base64.replace(/^.*,/, ''));
+      var buffer = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) {
+          buffer[i] = bin.charCodeAt(i);
       }
-      
-      // ファイルを選択したら実行
-      var photo = document.getElementById("photo");
-      photo.addEventListener('change', function(e) {
-        e.preventDefault();
-        var file = e.target.files[0];
-        document.getElementById("filename").value = file.name
-        reader.readAsDataURL(file);
-      }, false);
-      
-      // ファイルアップロード
-      var submit = document.getElementById("submit");
-      submit.addEventListener("click", function(e) {
-        e.preventDefault();
-        // ファイル名、ファイルデータを取得
-        var fileName = document.getElementById("filename").value;
-        var fileData = dataURItoBlob(document.getElementById("image").src);
-        
-        // アップロード
-        ncmb.File.upload(fileName, fileData)
-          .then(function(res) {
-            console.log(res);
-          })
-          .catch(function(err) {
-            console.error(err);
-          })
-      }, false)
-      
-      // ファイルダウンロード
-      var view = document.getElementById("view");
-      view.addEventListener("click", function(e) {
-        e.preventDefault();
-        // ファイル名を取得
-        var fileName = document.getElementById("filename").value;
-        
-        // ダウンロード（バイナリなのでblobを指定）
-        ncmb.File.download(fileName, "blob")
-          .then(function(blob) {
-            // ファイルリーダーにデータを渡す
-            reader.readAsDataURL(blob);
-          })
-          .catch(function(err) {
-            console.error(err);
-          })
-      }, false);
-    }
-          // dataURIをBlobに変換
-      function dataURItoBlob(dataURI) {
-          var byteString;
-          if (dataURI.split(',')[0].indexOf('base64') >= 0)
-              byteString = atob(dataURI.split(',')[1]);
-          else
-              byteString = unescape(dataURI.split(',')[1]);
-          var mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
-          var ia = new Uint8Array(byteString.length);
-          for (var i = 0; i < byteString.length; i++) {
-              ia[i] = byteString.charCodeAt(i);
-          }
-          return new Blob([ia], {type:mimeString});
+      // Blobを作成
+      try{
+          var blob = new Blob([buffer.buffer], {
+              type: mime_type
+          });
+      }catch (e){
+          return false;
       }
-      function clickBtn(){
-        navigator.camera.getPicture(onSuccess, onFail, { quality : 100, 
-          destinationType : Camera.DestinationType.DATA_URL, 
-          sourceType : Camera.PictureSourceType.CAMERA, 
-          encodingType: Camera.EncodingType.JPEG,
-          targetWidth: 120,
-          targetHeight: 150,
-          popoverOptions: CameraPopoverOptions,
-          saveToPhotoAlbum: false });
-      }
-      function onSuccess (imageData) {
-        var byteCharacters = toBlob(imageData);
-        ncmb.File.upload(fileName, byteCharacters)
-        .then(function(res){
-          console.log("アップロードできた");
-        })
-        .catch(function(err){
-          console.log('アップロード失敗');
-        });
-      }
-      function onFail(message) {
-        ons.notification.alert({
-          message: message,
-          title: "Error",
-          buttonLabel: "OK",
-          animation: "default"
-        });
-      }
-      function toBlob(base64) {
-        var bin = atob(base64.replace(/^.*,/, ""));
-        var buffer = new Uint8Array(bin.length);
-        for (var i = 0; i < bin.length; i++) {
-            buffer[i] = bin.charCodeAt(i);
-        }
-        try {
-            var blob = new Blob([buffer.buffer], {
-                type: "image/jpeg"
-            });
-        } catch (e) {
-            return false;
-        }
-        return blob;
-      }
-//document.addEventListener("deviceready", onDiviceReady, false);
+      return blob;
+  }
+
+  // UUID生成
+  function makeUUID() {
+      var d = + new Date();
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'
+          .replace(/[xy]/g, function(c) {
+              var r = (d + Math.random() * 16) % 16 | 0;
+              return (c == 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+          });
+  }
+
+   
   </script>
 </head>
-
+<style>
+body {
+	.page__background {
+  background-image:url("img/fitness.JPG");
+}
+</style>
 
 <!--中身-->
 <body>
@@ -1015,7 +1275,7 @@
 
   <!-- 共通画面 -->
   <ons-template id="common.html">
-    <ons-page id="common-page">
+    <ons-page id="common-page" class="background" src="img/fitness.JPG">
       <ons-tabbar>
         <ons-tab page="goal.html" icon="fa-flag"></ons-tab>
         <ons-tab page="schedule.html" icon="fa-calendar"></ons-tab>
@@ -1030,7 +1290,7 @@
   <!--新規登録画面-->
   <ons-template id="signup.html">
     <ons-page id="signup-page">
-      <div class="background" style="background-color: yellow;"></div>
+      <div class="background" style="background-image: yellow;"></div>
       <div class="content" style="text-align: center;" >
         <img src="img/logo.png" style="width:250px; height:250px">
         <p style="bold; margin-top:30px;font-size:20px">新規登録</p>
@@ -1074,7 +1334,7 @@
         <div class="left"><ons-back-button>logout</ons-back-button></div>
         <div class="center">目標一覧</div>
       </ons-toolbar>
-      <div class="background" style="background-color:white"></div>
+      <div class="background" style="background-color:white;"></div>
       <div id="goaldiv"></div>
       <div id="targetdiv"></div>
       <ons-button id="newgoal-button" style="text-align:center; position:fixed; left:60px; right:60px ;bottom:40px; background-color:#ffff00; color:#000000; border-width:1px;">+目標を追加する</ons-button>
@@ -1088,7 +1348,7 @@
       <div class="left"><ons-back-button></ons-back-button></div>
       <div class="center">目標登録</div>
       </ons-toolbar>
-      <div class="background" style="background-color:white"></div>
+      <div class="background" style="background-image:url(img/fitness.JPG);"></div>
       <div style="text-align:center; margin-top:150px;">
       <textarea id="target" class="textarea" rows="3" placeholder="目標を入力" style="height:150px; width:250px; border:1px solid #000000; background-color:white;"></textarea>
       </div>
@@ -1102,7 +1362,7 @@
   <!--スケジュール画面-->
   <ons-template id="schedule.html">
     <ons-page id="schedule-page">
-      <div class="background" style="background-color: white;"></div>
+      <div class="background" style="background-color:white;""></div>
       <ons-toolbar style="background-color: yellow;">
         <div class="left"><ons-back-button>logout</ons-back-button></div>
         <div class="center">スケジュール</div>
@@ -1159,27 +1419,122 @@
       </div>
     </ons-page>
   </ons-template>
-  <!---アルバム画面-->
-  <ons-template id="album.html">
-    <ons-page id="album-page">
-      <div class="background" style="background-color: white;"></div>
-      <ons-toolbar style="background-color: yellow;">
-        <div class="left"><ons-back-button>logout</ons-back-button></div>
+  <!---カメラ画面-->
+  <ons-template id="Camera.html">
+    <ons-page id="Camera-page">
+      <ons-toolbar style="background-color:yellow">
+        <div class="left"><ons-back-button>アルバム</ons-back-button></div>
         <div class="center">アルバム</div>
       </ons-toolbar>
+      
         <div class="content" style="text-align: center">
-          <div class="camera">
-            <ons-button id="btnCamera" onClick="clickBtn();">カメラ</button>
-          </div>
-          <hr>
-	        <div class="image">
-            画像はありません。
-          </div>
-	        <hr>
-	        <button onclick="upload()">アップロード</button>
-	        <hr>
+
+          <p><center><h2>あなたの写真を<br>upしましょう！</h2></center></p><br>
+               <label>タイトルを入力</label>
+                        <input id="imgName" type="text" placeholder="タイトル">
+                        <label>ファイルを選択</label>
+                        <div>
+                            <form>
+                                <input id="photo" type="file" accept="image/*">
+                            </form>
+                                <center><div id="preview"></div></center>
+                        </div>
+                    <input id="uploadBtn" type="button" value="アップロード" data-theme="b"">
+                
         </div>
     </ons-page>
+  </ons-template>
+ <!---アルバム画面-->
+  <ons-template id="album.html">
+    <ons-page id="album-page">
+      <ons-toolbar style="background-color:yellow">
+        <div class="left"><ons-back-button>logout</ons-back-button></div>
+        <div class="center">アルバム</div>
+        <div class="right"><ons-button id="camerachange-button">camera</ons-button></div>
+        <a href="#" id="myFilesBtn" data-role="button" data-inline="true" data-transition="flow" data-theme="b">マイフォト</a>
+        
+      </ons-toolbar>
+    <!-- アルバムタブ機能＆中央部 -->
+            <section data-role="content">
+                <center>
+                    <!-- 画像表示 -->
+                    <table border="1" width="98%">
+                        <tr height="200px">
+                            <td width="49%">
+                                <center>
+                                    <img src="" id="myImage_0" width="75%"/><br>
+                                    <span id="myTitle_0"></span><br>
+                                </center>
+                            </td>
+                            <td width="49%">
+                                <center>
+                                    <img src="" id="myImage_1" width="75%"/><br>
+                                    <span id="myTitle_1"></span><br>
+                                </center>
+                            </td>
+                        </tr>
+                        <tr height="200px">
+                            <td width="49%">
+                                <center>
+                                    <img src="" id="myImage_2" width="75%"/><br>
+                                    <span id="myTitle_2"></span><br>
+                                </center>
+                            </td>
+                            <td width="49%">
+                                <center>
+                                    <img src="" id="myImage_3" width="75%"/><br>
+                                    <span id="myTitle_3"></span><br>
+                                </center>
+                            </td>
+                        </tr>
+                        <tr height="200px">
+                            <td width="49%">
+                                <center>
+                                    <img src="" id="myImage_4" width="75%"/><br>
+                                    <span id="myTitle_4"></span><br>
+                                </center>
+                            </td>
+                            <td width="49%">
+                                <center>
+                                    <img src="" id="myImage_5" width="75%"/><br>
+                                    <span id="myTitle_5"></span><br>
+                                </center>
+                            </td>
+                        </tr>
+                        <tr height="200px">
+                            <td width="49%">
+                                <center>
+                                    <img src="" id="myImage_6" width="75%"/><br>
+                                    <span id="myTitle_6"></span><br>
+                                </center>
+                            </td>
+                            <td width="49%">
+                                <center>
+                                    <img src="" id="myImage_7" width="75%"/><br>
+                                    <span id="myTitle_7"></span><br>
+                                </center>
+                            </td>
+                        </tr>
+                        <tr height="200px">
+                            <td width="49%">
+                                <center>
+                                    <img src="" id="myImage_8" width="75%"/><br>
+                                    <span id="myTitle_8"></span><br>
+                                </center>
+                            </td>
+                            <td width="49%">
+                                <center>
+                                    <img src="" id="myImage_9" width="75%"/><br>
+                                    <span id="myTitle_9"></span><br>
+                                </center>
+                            </td>
+                        </tr>
+                    </table>
+                </center>
+            </section>
+          </div>
+          
+          </ons-page>
   </ons-template>
   <!---ボディチェック画面-->
   <ons-template id="weight.html">
@@ -1204,71 +1559,92 @@
     </ons-page>
   </ons-template>
   <!---カロリータンパク質画面-->
-  <ons-template id="nutrition.html">
-   <ons-page id="nutrition-page">
+<ons-template id="nutrition.html">
+<ons-page id="nutrition-page">
+    <div class="background" style="background-color: white;"></div>
+<ons-toolbar style="background-color: yellow;">
+    <div class="background" style="background-color: white;"></div>
+    <div class="left"><ons-back-button>logout</ons-back-button></div>
+    <div class="center">カロリータンパク質</div>
+</ons-toolbar>
+
+<div class="content" style="text-align: center; font-size:14pt;">
+    <!---カロリーバー表示追加-->
+    <p>カロリー(Kcal)</p>
+    <meter id="cal-meter" max="4000" style="width:70%"></meter>
+    <!---タンパクバー質表示追加-->
+    <p>タンパク質(g)</p>
+    <meter id="pro-meter" max="300" style="width:70%"></meter>
+    <!---カロリー入力追加-->
+    <p>カロリー</p>
+    <input type="text" id="cal">
+    <p id="valcal" style="color:red; font-size:10pt;"></p>
+    <!---タンパク質入力追加-->
+    <p>タンパク質</p>
+    <input type="text" id="protain">
+    <p id="valpro" style="color:red; font-size:10pt;"></p>
+    <p id="valnu" style="color:red; font-size:10pt;"></p>
+    <ons-button id="nut-button">記録</ons-button>
+  </div>
+  </ons-page>
+  </ons-template>
+    
+  <!---プロフィール画面-->
+  <ons-template id="profile.html">
+    <ons-page id="profile-page">
       <div class="background" style="background-color: white;"></div>
     <ons-toolbar style="background-color: yellow;">
-      <div class="background" style="background-color: white;"></div>
-      <div class="left"><ons-back-button>logout</ons-back-button></div>
-      <div class="center">カロリータンパク質</div>
-    </ons-toolbar>
-    
-    <div class="content" style="text-align: center">
-      <!---カロリーバー表示追加-->
-      <p>カロリー(Kcal)</p>
-      <meter id="cal-meter" max="4000" style="width:70%"></meter>
-      <!---タンパクバー質表示追加-->
-      <p>タンパク質(g)</p>
-      <meter id="pro-meter" max="300" style="width:70%"></meter>
-      <!---カロリー入力追加-->
-      <p>カロリー</p>
-      <input type="number" id="cal">
-      <!---タンパク質入力追加-->
-      <p>タンパク質</p>
-      <input type="number" id="protain"><br>
-      <ons-button id="nut-button">記録</ons-button>
-    </div>
-    
+        <div class="left"><ons-back-button>logout</ons-back-button></div>
+        <div class="center">プロフィール</div>
+      </ons-toolbar>
+      <div style="position:relative;width:100%;height:100%;">
+        <ons-row>
+          <ons-col width="70%">
+            <img src="img/profile.png" style="width:100%; height:100%">
+          </ons-col>
+          <!-- 身長レンジスライダー -->
+          <ons-col width="30%">
+            <span>　　　200cm</span>
+            <input id="pro-height-range" type="range" style="-webkit-appearance:slider-vertical;writing-mode:bt-lr; height:70%;" value="170.0" min="140.0" max="200.0" step="0.1" oninput="document.getElementById('pro-height').value=this.value">
+            <span>　　　140</span>
+            <output id="pro-height">170.0</output>
+          </ons-col>
+          <!-- 体重レンジスライダー -->
+          <ons-col width="100%">
+            <input id="pro-weight-range" type="range" style="width:70%" value="60.0" min="40.0" max="120.0" step="0.1" oninput="document.getElementById('pro-weight').value=this.value">
+            <output id="pro-weight" style="position:absolute; right:10%;%">60.0</output><br>
+            <span>40</span><span style="position:absolute; right:25%">120kg</span>
+          </ons-col>
+        </ons-row>
+
+        <!-- 身長・体重テキストボックス -->
+        <p id="pro-err" style="font-size:10pt;color:red;text-align:center;"></p>
+        <table style=" margin:auto;font-size:18pt;">
+          <tr>
+            <th>身長：</th>
+            <td><ons-input id="pro-height-inp" modifier="underbar" min="140.0" max="200.0" step="0.1"></ons-input></td>
+          </tr>
+          <tr>
+            <th>体重：</th>
+            <td><ons-input id="pro-weight-inp" modifier="underbar" min="40.0" max="120.0" step="0.1"></ons-input></td>
+          </tr>
+          <tr>
+            <th>BMI：</th>
+            <td><p id="pro-bmi"></p></td>
+          </tr>
+          <tr align="center">
+            <td rowspan="2">
+              <ons-button id="register-button">設定</ons-button>
+            </td>
+          </tr>
+        </table>
+
+
+
+        </div>
+      </div>
     </ons-page>
   </ons-template>
-  
-  <!---プロフィール画面-->
-    <ons-template id="profile.html">
-      <ons-page id="profile-page">
-        <div class="background" style="background-color: white;"></div>
-      <ons-toolbar style="background-color: yellow;">
-          <div class="left"><ons-back-button>logout</ons-back-button></div>
-          <div class="center">プロフィール</div>
-        </ons-toolbar>
-        <div style="position:relative;width:100%;height:90%;">
-          <ons-row>
-            <ons-col width="70%">
-              <img src="img/profile.png" style="width:100%; height:100%">
-            </ons-col>
-            <!-- 身長レンジスライダー   style="-webkit-appearance:slider-vertical;writing-mode:bt-lr;" -->
-            <ons-col width="30%">
-              <span>　　　200cm</span>
-              <input id="pro-height-range" type="range" style="-webkit-appearance:slider-vertical;writing-mode:bt-lr; height:70%;" value="170.0" min="140.0" max="200.0" step="0.1" oninput="document.getElementById('pro-height').value=this.value">
-              <span>　　　140</span>
-              <output id="pro-height">170.0</output>
-            </ons-col>
-            <!-- 体重レンジスライダー  style="position:absolute; left:10%; width:100%" -->
-            <ons-col width="100%">
-              <input id="pro-weight-range" type="range" style="width:70%" value="60.0" min="40.0" max="120.0" step="0.1" oninput="document.getElementById('pro-weight').value=this.value">
-              <output id="pro-weight" style="position:absolute; right:10%;%">60.0</output><br>
-              <span>40</span><span style="position:absolute; right:25%">120kg</span>
-            </ons-col>
-          </ons-row>
-          <!-- 身長・体重フォーム  -->
-          <div id="form" style="position:absolute; left:60%; bottom:0;">
-            身長：<ons-input id="pro-height-inp" type="number" min="140.0" max="200.0" step="0.1" modifier="underbar" value="170.0"></ons-input>cm<br><!-- readonly -->
-            体重：<ons-input id="pro-weight-inp" type="number" min="40.0" max="120.0" step="0.1" modifier="underbar" value="60.0"></ons-input>kg<br>
-            <p>BMI:</p><p id="pro-bmi"></p>
-            <ons-button id="register-button">設定</ons-button>
-          </div>
-        </div>
-      </ons-page>
-    </ons-template>
-    
+
 </body>
 </html>
