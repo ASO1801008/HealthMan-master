@@ -31,6 +31,116 @@
     //カメラ処理
     var currentUser;
     var imgFlag = false;
+    //カメラ処理
+    function onLoadFunc3(){
+      var currentUser = ncmb.User.getCurrentUser();
+      // フィールドを空に
+                    onDeleteMyPageField();
+                    // カレントユーザーの objectId を取得
+                    var objectId = currentUser.get("objectId");
+                    // 参照権限（ACL）としてカレントーユーザーにのみ読み書き権限が付与されているデータを指定
+                    var aclQueryStr = '{"*":{"read":true},"' + objectId + '":{"read":true,"write":true}}';
+                    aclQuery = JSON.parse(aclQueryStr);
+
+                    ncmb.File
+                            .equalTo("acl", aclQuery) 
+                            .order("createDate",true) // 作成日の降順を指定
+                            .limit(10) // 取得件数を10件で指定
+                            .fetchAll()
+                            .then(function(results){
+                                // ファイルデータ取得成功時の処理
+                                console.log("ファイルデータ取得成功(myFile)");
+
+                                var promises = [];
+                                for (var i = 0; i < results.length; i++) {
+                                    var object = results[i];
+                                    // ファイルデータを元にPromiseを使って１件ずつ同期処理でファイルストアから画像を取得
+                                    promises.push(downloadMyFile(object, i)); 
+                                }
+
+                                /*** Promise ***/
+                                Promise.all(promises)
+                                            .then(function(results) {
+                                                // 全てのPromise処理成功時の処理
+                                                console.log("全てのPromise処理に成功(myFile)：" + results + " OK");
+                                                // loading の表示を終了
+                                                //$.mobile.loading('hide');
+                                            })
+                                            .catch(function(error){
+                                                // 全てのPromise処理成功時の処理
+                                                console.log("Promise処理に失敗(myFile)：" + error);
+                                                alert("Promise処理に失敗(myFile)" );
+                                                // loading の表示を終了
+                                                //$.mobile.loading('hide');
+                                            });
+                            })
+                            .catch(function(error){
+                                // ファイルデータ取得失敗時の処理
+                                console.log("ファイルデータ取得失敗(myFile)：" + error);
+                                alert("Promise処理に失敗(myFile)" );
+                                // loading の表示を終了
+                                $.mobile.loading('hide');
+                            });
+                }
+                function downloadMyFile(object, i) {
+                    /*** Promise ***/
+                    return new Promise(function(resolve, reject) {
+                        //  画像・作品名の表示先を指定
+                        var myImageId = "myImage_" + i;
+                        var myTitleId = "myTitle_" + i;
+
+                        // ファイルデータからファイル名を取得
+                        var fileName = object.fileName;
+                        var fileName_encode = encodeURI(fileName);
+
+                        // ダウンロード（データ形式をblobを指定）
+                        ncmb.File.download(fileName_encode, "blob")
+                                      .then(function(blob) {
+                                          // ファイルダウンロード成功時の処理
+                                          var reader = new FileReader();
+                                          reader.onload = function(e) {
+                                              // 画像URLを設定
+                                              var dataUrl = reader.result;
+                                              document.getElementById(myImageId).src = dataUrl;
+                                              //  ファイル名を分解
+                                              var fileNameArray = fileName.split('_');
+                                              // 作品名を表示
+                                              var imageName = "「" + fileNameArray[0] + "」";
+                                              document.getElementById(myTitleId).innerHTML = imageName;
+                                          }
+                                          // ファイルリーダーにデータを渡す
+                                          reader.readAsDataURL(blob);                        
+                                      
+                                          resolve("画像" + i); 
+                                      })
+                                      .catch(function(error) {
+                                          // ファイルダウンロード失敗時の処理
+                                          reject("画像" + i);
+                                      });
+                    });
+                };
+
+                function onDeleteHomeScreenPageField() {
+                    // フィールドを空に
+                    $("#imgName").val("");
+                    $("#photo").val("");
+                    $("#preview").empty();
+                }
+
+                function onDeleteMyPageField() {
+                    // フィールドを空に
+                    $("#myImage_0").attr("src", "");
+                    $("#myImage_1").attr("src", "");
+                    $("#myImage_2").attr("src", "");
+                    $("#myImage_3").attr("src", "");
+                    $("#myTitle_0").html("");
+                    $("#myTitle_1").html("");
+                    $("#myTitle_2").html("");
+                    $("#myTitle_3").html("");
+                }
+
+    
+
 
     
     //スケジュール詳細画面の表示用処理
@@ -645,6 +755,7 @@
           page.querySelector('#camerachange-button').onclick = function(){
                         document.querySelector('#navigator').pushPage('Camera.html');
           };
+          onLoadFunc3();
 
           $(function() {
                   //$.mobile.defaultPageTransition = 'none';
@@ -688,15 +799,6 @@
           
           // ファイルストアに格納されたファイルデータ（画像本体以外の情報）を取得＜自分の作品＞
                 function getMyFileData(){
-                    // loading の表示
-                    /*$.mobile.loading('show', {
-                        text: 'Loading...',
-                        textVisible: true,
-                        theme: 'a',
-                        textonly: false,
-                        html: ''
-                    });
-                    */
                     // フィールドを空に
                     onDeleteMyPageField();
                     // カレントユーザーの objectId を取得
@@ -746,7 +848,7 @@
                             });
                 }
 
-                              // ファイルストアから画像を取得して「MY イラスト」に表示
+                // ファイルストアから画像を取得して「MY イラスト」に表示
                 function downloadMyFile(object, i) {
                     /*** Promise ***/
                     return new Promise(function(resolve, reject) {
@@ -821,12 +923,7 @@
                   }
 
                   $(function() {
-                      //$.mobile.defaultPageTransition = 'none';
-                      //$("#loginBtn").click(onLoginBtn);
-                      //$("#registerBtn").click(onIDRegisterBtn);
-                      //$("#YesBtn_logout").click(onLogoutBtn);
-                      //$("#everyoneBtn").click(onEveryoneBtn);
-                      //$("#myFilesBtn").click(onMyFilesBtn);
+                      
                       $("#uploadBtn").click(onUploadBtn);
 
                       $('form').on('change', 'input[type="file"]', function(e) {
@@ -919,55 +1016,51 @@
                         console.log("アップロード成功");
                         // フィールドを空に
                         onDeleteHomeScreenPageField
-                        // loading の非表示
-                       // $.mobile.loading('hide');
+                        onLoadFunc3();
+                        document.querySelector("#navigator").popPage();
+                        
                     })
                     .catch(function(error){
                         // アップロード失敗時の処理
                         alert("アップロード失敗：" + error);
                         console.log("アップロード失敗：" + error);
-                        // loading の非表示
-                        //$.mobile.loading('hide');
+                        
                     });
         }
 
+        
+
 
       //ボディチェックページの処理
-}else if(page.matches('#weight-page')){
-var currentUser = ncmb.User.getCurrentUser();
-var date = new Date();
-if (currentUser) { 
-    //ログアウト処理
-    page.querySelector("ons-back-button").onclick = function () {
-        ncmb.User.logout();
-        document.querySelector('#navigator').pushPage('signin.html');
-    };
-    onWeight();
-    //設定ボタンを押した時の処理
-    page.querySelector("#weight-button").onclick = function(){
-      var weight = new Weight;
-        var inpw = document.getElementById("weight-inp").value;
-        //バリデーションチェック
-        if(isNaN(inpw)){  //数字以外の入力
-            document.getElementById("weival").textContent = '数字5桁以内で入力してください';
-        }else if(inpw == 0){  //未入力
-            document.getElementById("weival").textContent = '必ず入力してください';
-        }else if(String(inpw).length > 5){  //5桁以上の入力
-            document.getElementById("weival").textContent = '数字5桁以内で入力してください';
-        }else{
-            document.getElementById("weival").textContent = '';
+      }else if(page.matches('#weight-page')){
+        var Weight = ncmb.DataStore("weight");
+        var currentUser = ncmb.User.getCurrentUser();
+        
+        var date = new Date();
+        if (currentUser) { 
+          //ログアウト処理
+          page.querySelector("ons-back-button").onclick = function () {
+            ncmb.User.logout();
+            document.querySelector('#navigator').pushPage('signin.html');
+          };
+
+          onWeight();
+
+          //設定ボタンを押した時の処理
+          page.querySelector("#weight-button").onclick = function() {
+            var weight = new Weight;
             //体重の登録
             weight.set("weight", document.getElementById("weight-inp").value)
                 .set("date",date)
                 .set("user_id",currentUser.get("objectId"))
                 .save()
-                .then(function(result){
-                    //ページの読み込み
+                .then(function(object)
+                {
                     onWeight();
                 });
-        }
-    }
-};
+            //ページの読み込み
+          }
+        };
       //カロリータンパク質ページの処理
       }else if(page.matches('#nutrition-page')){
         var date = new Date;
@@ -1079,58 +1172,63 @@ if (currentUser) {
     }
     //ボディチェック画面表示処理
     function onWeight(){
-        var currentUser = ncmb.User.getCurrentUser();
-        var h = 0;
-        if (currentUser) { 
-            //身長取得
-            Profile.equalTo("user_id",currentUser.get("objectId")).fetchAll()
-                    .then(function(results){
-                        for(var i=0; i<results.length; i++){
-                            h = results[i].get("height");
-                        }
-                    })
-                    .catch(function(error){
-                        console.log("データなし");
-                    });
-            //グラフ描画【静的データ】
-            var chartdata = {
-                labels: [],
-                datasets: [{
-                    label: "体重",
-                    backgroundColor:'rgba(0,0,0,0)',
-                    borderColor: 'rgba(75,192,192,1)',
-                    data: [],
-                }]
-            };
-            //体重データ取得
-            Weight.order("date",false)
-                .equalTo("user_id",currentUser.get("objectId"))
-                .fetchAll()
-                    .then(function(results){
-                        for (var i=0; i<results.length; i++) {
-                            chartdata.labels[i] = i+1;
-                            chartdata.datasets[0].data[i] = results[i].get("weight");
-                            var select_weight = results[i].get("weight");
-                            //BMIの計算
-                            var defbmi = select_weight / (h/100) / (h/100);
-                            defbmi = Math.round(defbmi * 10) / 10;
-                            //pタグに出力
-                            document.getElementById("bmi").textContent = defbmi;
-                        }
-                        var ctx = document.getElementById("myChart").getContext("2d");
-                        var lineChart = new Chart(ctx,{
-                            type:'line',
-                            data:chartdata,
-                            options:{
-                                responsive:true,
-                                maintainAspectRatio: false
-                            }
-                        });
-                    })
-                    .catch(function(err){
-                        console.log(err);
-                    });
-        }
+      var currentUser = ncmb.User.getCurrentUser();
+      var h = 0;
+      if (currentUser) {
+        //身長取得
+        Profile.equalTo("user_id",currentUser.get("objectId")).fetchAll()
+                .then(function(results){
+                  for(var i=0; i<results.length; i++){
+                    h = results[i].get("height");
+                  }
+                })
+                .catch(function(error){
+                  console.log("データなし");
+                });
+        //グラフ描画【静的データ】
+        var chartdata = {
+          labels: [],
+          datasets: [
+            {
+              label: "体重",
+              backgroundColor:'rgba(0,0,0,0)',
+              borderColor: 'rgba(75,192,192,1)',
+              data: [],
+            }]
+        };
+        //体重データ取得
+        Weight.order("date",false)
+              .equalTo("user_id",currentUser.get("objectId"))
+              .fetchAll()
+              .then(function(results){
+                  for (var i=0; i<results.length; i++) {
+                    chartdata.labels[i] = i+1;
+                    chartdata.datasets[0].data[i] = results[i].get("weight");
+                    //日付の取得、表示
+                    var select_weight = results[i].get("weight");
+                    //BMIの計算
+                    var defbmi = select_weight / (h/100) / (h/100);
+                    defbmi = Math.round(defbmi * 10) / 10;
+                    //pタグに出力
+                    document.getElementById("bmi").textContent = defbmi;
+                  }
+                  var ctx = document.getElementById("myChart").getContext("2d");
+                  var options = { };
+                  var lineChart = new Chart(ctx,{
+                    type:'line',
+                    data:chartdata,
+                    options:{
+                          //
+                          // responsive: false,
+                      responsive:true,
+                      maintainAspectRatio: false
+                    }
+                  });
+              })
+              .catch(function(err){
+                console.log(err);
+              });
+      }
     }
     //目標画面一覧用処理
     function onLoadFunc(){
@@ -1258,6 +1356,7 @@ if (currentUser) {
           });
   }
 
+ 
    
   </script>
 </head>
@@ -1266,6 +1365,8 @@ body {
 	.page__background {
   background-image:url("img/fitness.JPG");
 }
+
+
 </style>
 
 <!--中身-->
@@ -1425,22 +1526,25 @@ body {
     <ons-page id="Camera-page">
       <ons-toolbar style="background-color:yellow">
         <div class="left"><ons-back-button>アルバム</ons-back-button></div>
-        <div class="center">アルバム</div>
+        <div class="center">カメラ </div>
       </ons-toolbar>
       
         <div class="content" style="text-align: center">
 
           <p><center><h2>あなたの写真を<br>upしましょう！</h2></center></p><br>
-               <label>タイトルを入力</label>
-                        <input id="imgName" type="text" placeholder="タイトル">
-                        <label>ファイルを選択</label>
+                        <input id="imgName" type="text" placeholder="タイトルを入力">
+                        <br>
+                        <br>
+                        
                         <div>
                             <form>
                                 <input id="photo" type="file" accept="image/*">
                             </form>
                                 <center><div id="preview"></div></center>
                         </div>
-                    <input id="uploadBtn" type="button" value="アップロード" data-theme="b"">
+                    <input id="uploadBtn" type="button" value="アップロード" >
+
+                    
                 
         </div>
     </ons-page>
@@ -1452,9 +1556,10 @@ body {
         <div class="left"><ons-back-button>logout</ons-back-button></div>
         <div class="center">アルバム</div>
         <div class="right"><ons-button id="camerachange-button">camera</ons-button></div>
-        <a href="#" id="myFilesBtn" data-role="button" data-inline="true" data-transition="flow" data-theme="b">マイフォト</a>
+        <!--<a href="#" id="myFilesBtn" data-role="button" data-inline="true" data-transition="flow" data-theme="b">マイフォト</a>-->
         
       </ons-toolbar>
+      
     <!-- アルバムタブ機能＆中央部 -->
             <section data-role="content">
                 <center>
@@ -1527,38 +1632,45 @@ body {
                                 <center>
                                     <img src="" id="myImage_9" width="75%"/><br>
                                     <span id="myTitle_9"></span><br>
+                                    
                                 </center>
+                                
                             </td>
+                            
                         </tr>
+                        
                     </table>
                 </center>
+                              
             </section>
-          </div>
+
+            
+
           
           </ons-page>
   </ons-template>
-<!---ボディチェック画面-->
-<ons-template id="weight.html">
+  <!---ボディチェック画面-->
+  <ons-template id="weight.html">
     <ons-page id="weight-page">
-        <ons-toolbar style="background-color:yellow">
-            <div class="left"><ons-back-button>logout</ons-back-button></div>
-            <div class="center">ボディチェック</div>
-        </ons-toolbar>
-        <div class="background" style="background-color:white"></div>
-        <div class="chartWrapper" style="position: relative; overflow-x: scroll; margin-top:30px;">
+      <ons-toolbar style="background-color:yellow">
+        <div class="left"><ons-back-button>logout</ons-back-button></div>
+        <div class="center">ボディチェック</div>
+      </ons-toolbar>
+      <div class="background" style="background-color:white"></div>
+      <div class="chartWrapper" style="position: relative; overflow-x: scroll; margin-top:30px;">
         <div class="chartContainer" style="height:300px;">
-            <canvas id="myChart" style="height:300px; position: absolute; left: 0; top: 0; pointer-events:none;"></canvas>
+          <canvas id="myChart" style="height:300px; position: absolute; left: 0; top: 0; pointer-events:none;"></canvas>
         </div>
-        </div>
-        <br><br><br>
-        <p id="weival" style="font-size:10pt;color:red;text-align:center;"></p>
-        <!--体重・BMI-->
-        <table style=" margin:auto;font-size:16pt;">
-            <tr><td>体重：</td><td><ons-input id="weight-inp" modifier="underbar"></ons-input></td><td><ons-button id="weight-button">登録</ons-button></td></tr>
-            <tr><td>BMI：</td><td><p id="bmi"></p></td><td></td></tr>
-        </table>
+      </div>
+      <br><br><br><br>
+      <!--体重・BMI-->
+      <table style=" margin:auto;font-size:18pt;"><tr>
+      <td>体重：</td><td><ons-input id="weight-inp" modifier="underbar"></ons-input></td><td>
+      <ons-button id="weight-button">設定</ons-button><br></td></tr><tr>
+      <td>BMI：</td><td><p id="bmi"></p></td><td></td></tr>
+      </table>
     </ons-page>
-</ons-template>
+  </ons-template>
   <!---カロリータンパク質画面-->
 <ons-template id="nutrition.html">
 <ons-page id="nutrition-page">
